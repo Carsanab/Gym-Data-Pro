@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { gimnastasAPI, categoriasAPI, gruposAPI } from '../services/api';
-import { Search, Loader2, Plus, Edit2, Trash2, X, Save } from 'lucide-react';
+import { Search, Loader2, Plus, Edit2, Trash2, X, Save, AlertTriangle } from 'lucide-react';
 
 export default function Gimnastas() {
   const { user } = useAuth();
@@ -70,6 +70,13 @@ export default function Gimnastas() {
     porCategoria[cat].push(g);
   });
 
+  // Ordenar categorías según el orden de la tabla Categorias
+  const categoriasOrdenadas = Object.keys(porCategoria).sort((a, b) => {
+    const catA = categorias.find(c => c.categoria === a);
+    const catB = categorias.find(c => c.categoria === b);
+    return (catA?.Idcategoria || 999) - (catB?.Idcategoria || 999);
+  });
+
   const abrirModal = (gimnasta = null) => {
     if (gimnasta) {
       setEditandoId(gimnasta['Submission ID']);
@@ -120,6 +127,11 @@ export default function Gimnastas() {
       alert('Error al eliminar: ' + err.message);
     }
   };
+
+  // Helper para verificar si tiene alerta médica
+  const tieneAlerta = (g) => 
+    g['¿Presenta Alguna Condición Médica, Aspecto de Salud ó Cuidado Especial?'] === 'Si' || 
+    g['¿Es Alérgico?'] === 'Si';
 
   if (loading) {
     return (
@@ -181,64 +193,102 @@ export default function Gimnastas() {
         </select>
       </div>
 
+      {/* Lista agrupada por categoría */}
       <div className="space-y-5">
-        {Object.entries(porCategoria).map(([categoria, lista]) => (
-          <div key={categoria}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-px flex-1 bg-gold/30" />
-              <h3 className="text-gold font-bold text-xs uppercase px-2">
-                {categoria} <span className="text-gray-500">({lista.length})</span>
-              </h3>
-              <div className="h-px flex-1 bg-gold/30" />
-            </div>
+        {categoriasOrdenadas.map(categoria => {
+          const lista = porCategoria[categoria];
+          const catInfo = categorias.find(c => c.categoria === categoria);
+          
+          return (
+            <div key={categoria}>
+              {/* Separador de categoría */}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-px flex-1 bg-gold/30" />
+                <h3 className="text-gold font-bold text-xs uppercase px-2 flex items-center gap-1.5">
+                  {categoria}
+                  {catInfo?.edad && (
+                    <span className="text-gray-500 font-normal">({catInfo.edad} años)</span>
+                  )}
+                  <span className="text-gray-500 font-normal">· {lista.length}</span>
+                </h3>
+                <div className="h-px flex-1 bg-gold/30" />
+              </div>
 
-            <div className="space-y-2">
-              {lista.map(g => (
-                <div 
-                  key={g['Submission ID']} 
-                  className="bg-darkCard border border-gray-800 rounded-xl p-3 hover:border-gold/30 transition"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm truncate">
-                        {g['Nombre y Apellido']}
+              {/* Cards de gimnastas */}
+              <div className="space-y-2">
+                {lista.map(g => (
+                  <div 
+                    key={g['Submission ID']} 
+                    className={`bg-darkCard border rounded-xl p-3 transition ${
+                      tieneAlerta(g) 
+                        ? 'border-gymRed/40 bg-gymRed/5' 
+                        : 'border-gray-800 hover:border-gold/30'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="font-semibold text-sm truncate">
+                            {g['Nombre y Apellido']}
+                          </div>
+                          {tieneAlerta(g) && (
+                            <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gymRed/20 text-gymRed text-[9px] font-bold flex-shrink-0">
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              ALERTA
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                          <span>{g.Nivel}</span>
+                          <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                            g.Status === 'Activo' 
+                              ? 'bg-checkGreen/20 text-checkGreen' 
+                              : 'bg-gymRed/20 text-gymRed'
+                          }`}>
+                            {g.Status}
+                          </span>
+                          {g.Federados === 'TRUE' || g.Federados === true ? (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-gold/20 text-gold">
+                              FEDERADO
+                            </span>
+                          ) : null}
+                        </div>
+                        {tieneAlerta(g) && (
+                          <div className="text-[10px] text-gymRed mt-1 font-medium">
+                            {g['¿Presenta Alguna Condición Médica, Aspecto de Salud ó Cuidado Especial?'] === 'Si' && 
+                              `⚕️ ${g.Especificar || 'Condición médica'}`}
+                            {g['¿Es Alérgico?'] === 'Si' && 
+                              ` · 🤧 Alergia: ${g['¿A qué es Alérgico?'] || 'Sí'}`}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                        <span>{g.Nivel}</span>
-                        <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
-                          g.Status === 'Activo' 
-                            ? 'bg-checkGreen/20 text-checkGreen' 
-                            : 'bg-gymRed/20 text-gymRed'
-                        }`}>
-                          {g.Status}
-                        </span>
-                      </div>
+
+                      {/* Botones de acción (solo Admin) */}
+                      {isAdmin && (
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => abrirModal(g)}
+                            className="p-2 text-gold hover:bg-gold/10 rounded-lg transition"
+                            title="Editar"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => eliminar(g['Submission ID'], g['Nombre y Apellido'])}
+                            className="p-2 text-gymRed hover:bg-gymRed/10 rounded-lg transition"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-
-                    {isAdmin && (
-                      <div className="flex gap-1 flex-shrink-0">
-                        <button
-                          onClick={() => abrirModal(g)}
-                          className="p-2 text-gold hover:bg-gold/10 rounded-lg transition"
-                          title="Editar"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => eliminar(g['Submission ID'], g['Nombre y Apellido'])}
-                          className="p-2 text-gymRed hover:bg-gymRed/10 rounded-lg transition"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {filtrados.length === 0 && (
           <div className="text-center text-gray-500 py-8 text-sm">
@@ -247,6 +297,7 @@ export default function Gimnastas() {
         )}
       </div>
 
+      {/* ============ MODAL CREAR/EDITAR ============ */}
       {modalAbierto && (
         <div 
           className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center"
