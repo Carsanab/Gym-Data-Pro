@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { -webkit-tap-highlight-color: transparent; }
+
+body {
+  @apply bg-darkBg text-white font-sans antialiased;
+  overscroll-behavior: none;
+}
+
+/* Scrollbar oscuro */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0a0a0a; }
+::-webkit-scrollbar-thumb { background: #D4AF37; border-radius: 3px; }
+
+/* Input date oscuro */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
