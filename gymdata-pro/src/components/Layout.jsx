@@ -5,12 +5,19 @@ import {
   Dumbbell, Menu, X, ChevronRight
 } from 'lucide-react';
 import { useState } from 'react';
-import { Avatar } from '../utils/imagenes.jsx'; // ← NUEVO
+import { Avatar } from '../utils/imagenes.jsx';
+import useInstallPrompt from '../hooks/useInstallPrompt.js'; // ✅ NUEVO
+import BannerInstalacion from './BannerInstalacion.jsx'; // ✅ NUEVO
+import BotonInstalar from './BotonInstalar.jsx'; // ✅ NUEVO
 
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuAbierto, setMenuAbierto] = useState(false);
+  
+  // ✅ Hook de instalación
+  const { isInstallable, isInstalled, showBanner, handleInstall, closeBanner } = useInstallPrompt();
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
   const navItems = [
     { to: '/', icon: Home, label: 'Inicio' },
@@ -21,7 +28,6 @@ export default function Layout() {
 
   const menuItems = [
     { to: '/legajo', label: 'Legajos', icon: '📋' },
-    
     ...(user?.Rol === 'Admin' ? [
       { to: '/entrenadores', label: 'Entrenadores', icon: '🏋️' },
       { to: '/grupos', label: 'Grupos', icon: '🏷️' },
@@ -62,13 +68,17 @@ export default function Layout() {
               </span>
             </div>
             
-            {/* Avatar con foto real */}
-            <Avatar 
-              nombreUsuario={user?.Usuario} 
-              size="md"
-              className="ring-2 ring-gold/30"
+            {/* Avatar */}
+            <Avatar nombreUsuario={user?.Usuario} size="md" className="ring-2 ring-gold/30" />
+
+            {/* ✅ BOTÓN DESCARGAR APP */}
+            <BotonInstalar 
+              isInstallable={isInstallable}
+              isInstalled={isInstalled}
+              onInstall={handleInstall}
             />
 
+            {/* Menú hamburguesa */}
             <button 
               onClick={() => setMenuAbierto(true)}
               className="p-2 text-gray-400 hover:text-gold transition rounded-lg hover:bg-darkCard"
@@ -79,6 +89,7 @@ export default function Layout() {
         </div>
       </header>
 
+      {/* ============ CONTENIDO ============ */}
       <main className="px-4 py-4 max-w-4xl mx-auto">
         <Outlet />
       </main>
@@ -118,7 +129,6 @@ export default function Layout() {
           />
           
           <div className="relative ml-auto w-72 max-w-[85vw] h-full bg-darkCard border-l border-gold/20 flex flex-col">
-            {/* Header del drawer con foto grande */}
             <div className="p-4 border-b border-gold/20 bg-gradient-to-br from-gold/10 to-transparent">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -136,7 +146,6 @@ export default function Layout() {
                 </button>
               </div>
               
-              {/* Info usuario con foto */}
               <div className="flex items-center gap-3">
                 <Avatar nombreUsuario={user?.Usuario} size="lg" />
                 <div className="flex-1 min-w-0">
@@ -171,6 +180,20 @@ export default function Layout() {
                   </Link>
                 ))}
               </div>
+
+              {/* ✅ SECCIÓN DESCARGAR APP EN EL MENÚ */}
+              {!isInstalled && (
+                <div className="px-3 py-2 border-t border-gold/10 mt-2">
+                  <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wider px-2 mb-1">
+                    App Móvil
+                  </div>
+                  <BotonInstalar 
+                    isInstallable={isInstallable}
+                    isInstalled={isInstalled}
+                    onInstall={handleInstall}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="p-3 border-t border-gold/20">
@@ -187,6 +210,15 @@ export default function Layout() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ✅ BANNER EMERGENTE DE INSTALACIÓN */}
+      {showBanner && (
+        <BannerInstalacion 
+          onInstall={handleInstall}
+          onClose={closeBanner}
+          isIOS={isIOS}
+        />
       )}
     </div>
   );
