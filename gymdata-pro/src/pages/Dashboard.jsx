@@ -80,7 +80,7 @@ export default function Dashboard() {
     },
     { 
       path: '/entrenadores', icon: Dumbbell, label: 'Entrenadores', desc: 'Equipo técnico',
-      color: 'text-gold', bg: 'from-gold/20 to-gold/5', border: 'border-gold/20', visible: true 
+      color: 'text-gold', bg: 'from-gold/20 to-gold/5', border: 'border-gold/20', visible: isAdmin 
     },
     { 
       path: '/grupos', icon: Layers, label: 'Grupos', desc: 'Horarios y profes',

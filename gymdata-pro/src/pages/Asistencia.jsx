@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { gruposAPI, gimnastasAPI, asistenciaAPI } from '../services/api';
-import { Check, X, Loader2, Save, Calendar, Trash2, Edit2 } from 'lucide-react';
+import { Check, X, Loader2, Save, Calendar, Trash2, Edit2, AlertCircle } from 'lucide-react';
 
 export default function Asistencia() {
   const { user } = useAuth();
@@ -16,24 +16,15 @@ export default function Asistencia() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
 
-  // Cargar grupos (Admin con grupos → solo sus grupos; Admin sin grupos → todos; Profesor → solo los suyos)
   useEffect(() => {
     gruposAPI.getAll().then(data => {
-      if (isAdmin) {
-        const gruposDelAdmin = data.filter(g => 
-          String(g['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
-        );
-        setGrupos(gruposDelAdmin.length > 0 ? gruposDelAdmin : data);
-      } else {
-        const gruposDelProfe = data.filter(g => 
-          String(g['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
-        );
-        setGrupos(gruposDelProfe);
-      }
+      const filtrados = isAdmin ? data : data.filter(g => 
+        String(g['Profesor(es)']).includes(user.Usuario)
+      );
+      setGrupos(filtrados);
     });
   }, [user, isAdmin]);
 
-  // Cargar gimnastas del grupo + asistencia existente
   useEffect(() => {
     if (!grupoSel) { setGimnastas([]); setAsistencias({}); return; }
     setLoading(true);
@@ -96,6 +87,7 @@ export default function Asistencia() {
     if (!grupoSel) { mostrarMsg('Selecciona un grupo', false); return; }
     setSaving(true);
     try {
+      // Solo los nuevos (sin id previo)
       const registros = Object.entries(asistencias)
         .filter(([_, v]) => v.estado && !v.id)
         .map(([idGimnasta, v]) => ({
@@ -115,6 +107,7 @@ export default function Asistencia() {
       await asistenciaAPI.registrar(registros);
       mostrarMsg(`✓ ${registros.length} asistencias guardadas`, true);
       
+      // Recargar para obtener los IDs
       const asistActualizada = await asistenciaAPI.get(grupoSel, fecha);
       const map = {};
       asistActualizada.forEach(a => {
@@ -141,6 +134,7 @@ export default function Asistencia() {
     <div className="space-y-4 pb-4">
       <h2 className="text-2xl font-bold text-gold">Asistencia</h2>
 
+      {/* Selectores */}
       <div className="space-y-3">
         <select
           value={grupoSel}
@@ -166,6 +160,7 @@ export default function Asistencia() {
         </div>
       </div>
 
+      {/* Contadores */}
       {grupoSel && (
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-checkGreen/10 border border-checkGreen/30 rounded-xl p-2 text-center">
@@ -183,6 +178,7 @@ export default function Asistencia() {
         </div>
       )}
 
+      {/* Lista de gimnastas */}
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 text-gold animate-spin" />
@@ -221,6 +217,7 @@ export default function Asistencia() {
                   </div>
                 </button>
 
+                {/* Acciones si ya existe registro */}
                 {tieneRegistro && (
                   <div className="flex gap-1 border-l border-gray-700 pl-2">
                     <button
@@ -250,6 +247,7 @@ export default function Asistencia() {
         </div>
       )}
 
+      {/* Botón guardar */}
       {grupoSel && gimnastas.length > 0 && (
         <button
           onClick={guardar}
@@ -261,6 +259,7 @@ export default function Asistencia() {
         </button>
       )}
 
+      {/* Mensaje toast */}
       {msg && (
         <div className={`fixed top-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg text-sm font-semibold shadow-lg z-50 ${
           msg.includes('✓') ? 'bg-checkGreen text-white' : 'bg-gymRed text-white'

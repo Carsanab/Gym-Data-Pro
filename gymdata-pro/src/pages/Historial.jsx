@@ -1,60 +1,99 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { gruposAPI, gimnastasAPI, asistenciaAPI } from '../services/api';
-import { Check, X, Loader2 } from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { asistenciaAPI } from '../services/api';
+import { Check, X, Loader2, Calendar } from 'lucide-react';
+
+// Función para formatear fecha a dd/mm/yyyy
+const formatearFecha = (fechaStr) => {
+  if (!fechaStr) return '—';
+  const date = new Date(fechaStr);
+  if (isNaN(date.getTime())) return fechaStr;
+  const dia = String(date.getDate()).padStart(2, '0');
+  const mes = String(date.getMonth() + 1).padStart(2, '0');
+  const anio = date.getFullYear();
+  return `${dia}/${mes}/${anio}`;
+};
+
+// Función para formatear fecha corta (para headers de tabla)
+const formatearFechaCorta = (fechaStr) => {
+  if (!fechaStr) return '—';
+  const date = new Date(fechaStr);
+  if (isNaN(date.getTime())) return fechaStr;
+  return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+};
 
 export default function Historial() {
   const { user } = useAuth();
   const isAdmin = user?.Rol === 'Admin';
   
-  const [grupos, setGrupos] = useState([]);
+  const { grupos, gimnastas, loading: loadingData } = useData();
+  
   const [grupoSel, setGrupoSel] = useState('');
   const [datos, setDatos] = useState([]);
   const [fechas, setFechas] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [cargando, setCargando] = useState(false);
 
-  useEffect(() => {
-    gruposAPI.getAll().then(data => {
-      if (isAdmin) {
-        const gruposDelAdmin = data.filter(g => 
-          String(g['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
-        );
-        setGrupos(gruposDelAdmin.length > 0 ? gruposDelAdmin : data);
-      } else {
-        const gruposDelProfe = data.filter(g => 
-          String(g['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
-        );
-        setGrupos(gruposDelProfe);
-      }
-    });
-  }, [user, isAdmin]);
+  // Filtrar grupos según rol
+  const gruposFiltrados = useMemo(() => {
+    if (isAdmin) {
+      const gruposDelAdmin = grupos.filter(g => 
+        String(g['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
+      );
+      return gruposDelAdmin.length > 0 ? gruposDelAdmin : grupos;
+    } else {
+      return grupos.filter(g => 
+        String(g['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
+      );
+    }
+  }, [grupos, user, isAdmin]);
 
+  // Calcular fecha límite (90 días atrás)
+  const fechaLimite = useMemo(() => {
+    const hoy = new Date();
+    hoy.setDate(hoy.getDate() - 90);
+    return hoy.toISOString().split('T')[0]; // YYYY-MM-DD
+  }, []);
+
+  // Cargar historial cuando cambia el grupo seleccionado
   useEffect(() => {
-    if (!grupoSel) { setDatos([]); setFechas([]); return; }
-    setLoading(true);
+    if (!grupoSel) { 
+      setDatos([]); 
+      setFechas([]); 
+      return; 
+    }
+    setCargando(true);
     
-    Promise.all([
-      gimnastasAPI.getAll(),
-      asistenciaAPI.getHistorial(grupoSel)
-    ]).then(([allGimnastas, asistencias]) => {
-      const delGrupo = allGimnastas.filter(g => String(g.Grupo) === String(grupoSel));
+    asistenciaAPI.getHistorial(grupoSel).then(asistencias => {
+      // ✅ FILTRAR: Solo asistencias de los últimos 90 días
+      const asistenciasRecientes = asistencias.filter(a => {
+        const fechaAsistencia = a.Fecha;
+        return fechaAsistencia >= fechaLimite;
+      });
+
+      // Filtrar gimnastas del grupo seleccionado
+      const delGrupo = gimnastas.filter(g => String(g.Grupo) === String(grupoSel));
       
-      const fechasUnicas = [...new Set(asistencias.map(a => a.Fecha))]
+      // Obtener fechas únicas ordenadas (más reciente primero)
+      const fechasUnicas = [...new Set(asistenciasRecientes.map(a => a.Fecha))]
         .sort((a, b) => new Date(b) - new Date(a));
       setFechas(fechasUnicas);
       
+      // Construir matriz de datos
       const matriz = delGimnasta => {
         const id = String(delGimnasta['Submission ID']);
         const fechasMap = {};
-        asistencias
+        asistenciasRecientes
           .filter(a => String(a.IdGimnasta) === id)
-          .forEach(a => { fechasMap[a.Fecha] = { estado: a.Estado, id: a.ID }; });
+          .forEach(a => { 
+            fechasMap[a.Fecha] = { estado: a.Estado, id: a.ID }; 
+          });
         return { gimnasta: delGimnasta, fechas: fechasMap };
       };
       
       setDatos(delGrupo.map(matriz));
-    }).finally(() => setLoading(false));
-  }, [grupoSel]);
+    }).finally(() => setCargando(false));
+  }, [grupoSel, gimnastas, fechaLimite]);
 
   const toggleEstado = async (gimnastaId, fecha) => {
     const registro = datos.find(d => String(d.gimnasta['Submission ID']) === String(gimnastaId));
@@ -77,9 +116,22 @@ export default function Historial() {
     }
   };
 
+  if (loadingData) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 text-gold animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-4">
-      <h2 className="text-2xl font-bold text-gold">Historial</h2>
+      <div>
+        <h2 className="text-2xl font-bold text-gold">Historial</h2>
+        <p className="text-xs text-gray-500">
+          Mostrando registros de los últimos 90 días
+        </p>
+      </div>
 
       <select
         value={grupoSel}
@@ -87,14 +139,14 @@ export default function Historial() {
         className="w-full bg-darkCard border border-gray-800 rounded-xl p-3 text-sm focus:border-gold focus:outline-none"
       >
         <option value="">Seleccionar grupo...</option>
-        {grupos.map(g => (
+        {gruposFiltrados.map(g => (
           <option key={g.IdGrupo} value={g.IdGrupo}>
             #{g.IdGrupo} - {g['Nombre Grupo']}
           </option>
         ))}
       </select>
 
-      {loading ? (
+      {cargando ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 text-gold animate-spin" />
         </div>
@@ -108,7 +160,7 @@ export default function Historial() {
                 </th>
                 {fechas.map(f => (
                   <th key={f} className="p-2 text-center text-gold text-xs font-bold min-w-[70px]">
-                    {new Date(f + 'T00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}
+                    {formatearFechaCorta(f)}
                   </th>
                 ))}
               </tr>
@@ -138,9 +190,16 @@ export default function Historial() {
             </tbody>
           </table>
         </div>
-      ) : grupoSel && (
-        <p className="text-center text-gray-500 py-8">Sin datos de asistencia</p>
-      )}
+      ) : grupoSel ? (
+        <div className="text-center py-8">
+          <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-2" />
+          <p className="text-gray-500 text-sm">
+            {fechas.length === 0 
+              ? 'No hay registros de asistencia en los últimos 90 días' 
+              : 'Sin datos de asistencia'}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

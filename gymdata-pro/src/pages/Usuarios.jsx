@@ -1,43 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { usuariosAPI, gruposAPI } from '../services/api';
-import { Search, Loader2, Plus, Edit2, Trash2, X, Save, Shield, User as UserIcon } from 'lucide-react';
-import { Avatar } from '../utils/imagenes.jsx'; // ← NUEVO
+import { useData } from '../context/DataContext';
+import { usuariosAPI } from '../services/api';
+import { 
+  Search, Loader2, Plus, Edit2, Trash2, X, Save, 
+  Shield, Eye, EyeOff
+} from 'lucide-react';
+import { Avatar } from '../utils/imagenes.jsx';
 
 export default function Usuarios() {
   const { user } = useAuth();
   const isAdmin = user?.Rol === 'Admin';
-  const [usuarios, setUsuarios] = useState([]);
-  const [grupos, setGrupos] = useState([]);
+  const { usuarios: usuariosCache, loading, refreshUsuarios } = useData();
+  
   const [busqueda, setBusqueda] = useState('');
   const [filtroRol, setFiltroRol] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [mostrarPasswords, setMostrarPasswords] = useState({});
   
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [formData, setFormData] = useState({
-    Usuario: '', Correo: '', Contrasena: '', Rol: 'Profesor', Imagen: ''
+    Usuario: '', 
+    Correo: '', 
+    Contrasena: '', 
+    Rol: 'Profesor'
   });
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    Promise.all([usuariosAPI.getAll(), gruposAPI.getAll()])
-      .then(([u, g]) => {
-        setUsuarios(u);
-        setGrupos(g);
-      })
-      .finally(() => setLoading(false));
-  }, [isAdmin]);
-
-  const filtrados = usuarios.filter(u => {
-    const matchNombre = u.Usuario?.toLowerCase().includes(busqueda.toLowerCase());
-    const matchCorreo = u.Correo?.toLowerCase().includes(busqueda.toLowerCase());
-    const matchRol = !filtroRol || u.Rol === filtroRol;
-    return (matchNombre || matchCorreo) && matchRol;
-  });
-
-  const contarGrupos = (nombreUsuario) => 
-    grupos.filter(g => String(g['Profesor(es)']).includes(nombreUsuario)).length;
+  const filtrados = useMemo(() => {
+    return usuariosCache.filter(u => {
+      const matchNombre = u.Usuario?.toLowerCase().includes(busqueda.toLowerCase());
+      const matchCorreo = u.Correo?.toLowerCase().includes(busqueda.toLowerCase());
+      const matchRol = !filtroRol || u.Rol === filtroRol;
+      return (matchNombre || matchCorreo) && matchRol;
+    });
+  }, [usuariosCache, busqueda, filtroRol]);
 
   const abrirModal = (usuario = null) => {
     if (usuario) {
@@ -46,12 +42,11 @@ export default function Usuarios() {
         Usuario: usuario.Usuario,
         Correo: usuario.Correo,
         Contrasena: usuario.Contrasena || '',
-        Rol: usuario.Rol,
-        Imagen: usuario.Imagen || ''
+        Rol: usuario.Rol
       });
     } else {
       setEditandoId(null);
-      setFormData({ Usuario: '', Correo: '', Contrasena: '1234', Rol: 'Profesor', Imagen: '' });
+      setFormData({ Usuario: '', Correo: '', Contrasena: '1234', Rol: 'Profesor' });
     }
     setModalAbierto(true);
   };
@@ -68,7 +63,7 @@ export default function Usuarios() {
         await usuariosAPI.crear(user.IdUsuarios, formData);
       }
       setModalAbierto(false);
-      window.location.reload();
+      await refreshUsuarios();
     } catch (err) {
       alert('Error: ' + err.message);
     }
@@ -82,10 +77,14 @@ export default function Usuarios() {
     if (!window.confirm(`¿Eliminar al usuario "${nombre}"?`)) return;
     try {
       await usuariosAPI.eliminar(user.IdUsuarios, id);
-      window.location.reload();
+      await refreshUsuarios();
     } catch (err) {
       alert('Error al eliminar');
     }
+  };
+
+  const togglePassword = (id) => {
+    setMostrarPasswords(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   if (!isAdmin) {
@@ -103,6 +102,7 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-4 pb-4">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gold">Usuarios</h2>
@@ -110,7 +110,7 @@ export default function Usuarios() {
         </div>
         <button
           onClick={() => abrirModal()}
-          className="bg-gold text-darkBg p-2.5 rounded-xl hover:bg-goldDark transition"
+          className="bg-gold text-darkBg p-2.5 rounded-xl hover:bg-goldDark transition shadow-lg shadow-gold/20"
         >
           <Plus className="w-5 h-5" />
         </button>
@@ -149,16 +149,17 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* Lista de usuarios con fotos */}
+      {/* Lista de usuarios */}
       <div className="space-y-2">
         {filtrados.map(u => (
           <div key={u.IdUsuarios} className="bg-darkCard border border-gray-800 rounded-xl p-3 hover:border-gold/30 transition">
             <div className="flex items-start gap-3">
-              {/* Foto real del usuario */}
+              {/* ✅ IMAGEN DEL USUARIO */}
               <Avatar nombreUsuario={u.Usuario} size="lg" />
               
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
+                {/* Nombre y Rol */}
+                <div className="flex items-center gap-2 flex-wrap mb-1">
                   <span className="font-bold text-sm">{u.Usuario}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
                     u.Rol === 'Admin' ? 'bg-gold/20 text-gold' : 'bg-gymRed/20 text-gymRed'
@@ -166,15 +167,31 @@ export default function Usuarios() {
                     {u.Rol}
                   </span>
                 </div>
-                <div className="text-xs text-gray-500 truncate mt-0.5">{u.Correo}</div>
-                {u.Rol === 'Profesor' && (
-                  <div className="text-[10px] text-gold mt-1">
-                    {contarGrupos(u.Usuario)} grupos asignados
-                  </div>
-                )}
+                
+                {/* Correo */}
+                <div className="text-xs text-gray-500 truncate">{u.Correo}</div>
+                
+                {/* Contraseña con toggle */}
+                <div className="flex items-center gap-2 mt-1.5">
+                  <div className="text-[10px] text-gray-500 uppercase font-semibold">Contraseña:</div>
+                  <code className="text-xs bg-darkBg px-2 py-0.5 rounded font-mono text-gold">
+                    {mostrarPasswords[u.IdUsuarios] ? u.Contrasena : '••••••'}
+                  </code>
+                  <button
+                    onClick={() => togglePassword(u.IdUsuarios)}
+                    className="p-1 text-gray-500 hover:text-gold transition"
+                  >
+                    {mostrarPasswords[u.IdUsuarios] ? (
+                      <EyeOff className="w-3 h-3" />
+                    ) : (
+                      <Eye className="w-3 h-3" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
+            {/* Botones Editar/Eliminar */}
             <div className="flex gap-2 mt-3 pt-2 border-t border-gray-800">
               <button
                 onClick={() => abrirModal(u)}
@@ -192,18 +209,38 @@ export default function Usuarios() {
             </div>
           </div>
         ))}
+
+        {filtrados.length === 0 && (
+          <div className="text-center text-gray-500 py-8 text-sm">
+            No se encontraron usuarios
+          </div>
+        )}
       </div>
 
-      {/* Modal */}
+      {/* Modal CRUD */}
       {modalAbierto && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center" onClick={() => setModalAbierto(false)}>
-          <div className="bg-darkCard w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto border border-gold/20" onClick={e => e.stopPropagation()}>
-            <div className="sticky top-0 bg-darkCard border-b border-gold/20 p-4 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gold">{editandoId ? 'Editar' : 'Nuevo'} Usuario</h3>
-              <button onClick={() => setModalAbierto(false)}><X className="w-5 h-5 text-gray-400" /></button>
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center"
+          onClick={() => setModalAbierto(false)}
+        >
+          <div 
+            className="bg-darkCard w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto border border-gold/20"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-darkCard border-b border-gold/20 p-4 flex justify-between items-center z-10">
+              <h3 className="text-lg font-bold text-gold">
+                {editandoId ? 'Editar' : 'Nuevo'} Usuario
+              </h3>
+              <button 
+                onClick={() => setModalAbierto(false)}
+                className="p-1.5 rounded-lg hover:bg-darkBg text-gray-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
+
             <div className="p-4 space-y-3">
-              {/* Preview de la foto */}
+              {/* ✅ Preview de la imagen */}
               {formData.Usuario && (
                 <div className="flex flex-col items-center py-3 bg-darkBg rounded-xl">
                   <Avatar nombreUsuario={formData.Usuario} size="xl" />
@@ -214,7 +251,9 @@ export default function Usuarios() {
               )}
 
               <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">NOMBRE DE USUARIO *</label>
+                <label className="text-xs text-gold font-semibold mb-1 block">
+                  NOMBRE DE USUARIO *
+                </label>
                 <input
                   value={formData.Usuario}
                   onChange={e => setFormData({ ...formData, Usuario: e.target.value })}
@@ -227,7 +266,9 @@ export default function Usuarios() {
               </div>
 
               <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">CORREO *</label>
+                <label className="text-xs text-gold font-semibold mb-1 block">
+                  CORREO *
+                </label>
                 <input
                   type="email"
                   value={formData.Correo}
@@ -238,7 +279,9 @@ export default function Usuarios() {
               </div>
 
               <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">CONTRASEÑA *</label>
+                <label className="text-xs text-gold font-semibold mb-1 block">
+                  CONTRASEÑA *
+                </label>
                 <input
                   type="text"
                   value={formData.Contrasena}
@@ -249,7 +292,9 @@ export default function Usuarios() {
               </div>
 
               <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">ROL *</label>
+                <label className="text-xs text-gold font-semibold mb-1 block">
+                  ROL *
+                </label>
                 <div className="flex gap-2">
                   {['Admin', 'Profesor'].map(rol => (
                     <button
@@ -269,9 +314,10 @@ export default function Usuarios() {
 
               <button
                 onClick={guardar}
-                className="w-full bg-gradient-to-r from-gymRed to-gymRedDark text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 mt-4"
+                className="w-full bg-gradient-to-r from-gymRed to-gymRedDark text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 mt-4 shadow-lg shadow-gymRed/20"
               >
-                <Save className="w-4 h-4" /> {editandoId ? 'Actualizar' : 'Crear'} Usuario
+                <Save className="w-4 h-4" />
+                {editandoId ? 'Actualizar' : 'Crear'} Usuario
               </button>
             </div>
           </div>

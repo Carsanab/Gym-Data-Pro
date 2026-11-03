@@ -21,8 +21,9 @@ export default function Layout() {
 
   const menuItems = [
     { to: '/legajo', label: 'Legajos', icon: '📋' },
-    { to: '/entrenadores', label: 'Entrenadores', icon: '🏋️' },
+    
     ...(user?.Rol === 'Admin' ? [
+      { to: '/entrenadores', label: 'Entrenadores', icon: '🏋️' },
       { to: '/grupos', label: 'Grupos', icon: '🏷️' },
       { to: '/usuarios', label: 'Usuarios', icon: '👥' },
     ] : []),

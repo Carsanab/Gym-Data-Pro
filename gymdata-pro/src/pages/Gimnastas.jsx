@@ -1,137 +1,107 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { gimnastasAPI, categoriasAPI, gruposAPI } from '../services/api';
-import { Search, Loader2, Plus, Edit2, Trash2, X, Save, AlertTriangle } from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { Search, Loader2, Award, Calendar, MapPin, Users, Shield } from 'lucide-react';
+
+// Función para formatear fecha a dd/mm/yyyy
+const formatearFecha = (fecha) => {
+  if (!fecha) return null;
+  const fechaStr = String(fecha).trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(fechaStr)) return fechaStr;
+  if (fechaStr.includes('T')) {
+    const [parteFecha] = fechaStr.split('T');
+    const [anio, mes, dia] = parteFecha.split('-');
+    return `${dia}/${mes}/${anio}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(fechaStr)) {
+    const [parteFecha] = fechaStr.split(' ');
+    const [anio, mes, dia] = parteFecha.split('-');
+    return `${dia}/${mes}/${anio}`;
+  }
+  const dateObj = new Date(fechaStr);
+  if (!isNaN(dateObj.getTime())) {
+    const dia = String(dateObj.getDate()).padStart(2, '0');
+    const mes = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const anio = dateObj.getFullYear();
+    return `${dia}/${mes}/${anio}`;
+  }
+  return fechaStr;
+};
 
 export default function Gimnastas() {
   const { user } = useAuth();
   const isAdmin = user?.Rol === 'Admin';
+  const { gimnastas, categorias, grupos, loading } = useData();
   
-  const [gimnastas, setGimnastas] = useState([]);
-  const [categorias, setCategorias] = useState([]);
-  const [grupos, setGrupos] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [filtroNivel, setFiltroNivel] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('');
-  const [loading, setLoading] = useState(true);
-  
-  const [modalAbierto, setModalAbierto] = useState(false);
-  const [editandoId, setEditandoId] = useState(null);
-  const [formData, setFormData] = useState({
-    'Nombre y Apellido': '',
-    Categoria: '',
-    Nivel: '',
-    Grupo: '',
-    Status: 'Activo'
-  });
 
-  useEffect(() => {
-    Promise.all([
-      gimnastasAPI.getAll(),
-      categoriasAPI.getAll(),
-      gruposAPI.getAll()
-    ]).then(([g, c, gr]) => {
-      let gFiltrados = g;
-      
-      if (isAdmin) {
-        const gruposDelAdmin = gr.filter(grupo => 
-          String(grupo['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
-        );
-        
-        if (gruposDelAdmin.length > 0) {
-          const idsGrupos = gruposDelAdmin.map(grupo => String(grupo.IdGrupo));
-          gFiltrados = g.filter(gim => idsGrupos.includes(String(gim.Grupo)));
-        }
-      } else {
-        const gruposDelProfe = gr.filter(grupo => 
-          String(grupo['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
-        );
-        const idsGrupos = gruposDelProfe.map(grupo => String(grupo.IdGrupo));
-        gFiltrados = g.filter(gim => idsGrupos.includes(String(gim.Grupo)));
+  // Obtener niveles únicos de los gimnastas
+  const nivelesUnicos = useMemo(() => {
+    const niveles = [...new Set(gimnastas.map(g => g.Nivel).filter(Boolean))];
+    return niveles.sort();
+  }, [gimnastas]);
+
+  // Filtrar gimnastas según rol
+  const gimnastasFiltradosPorRol = useMemo(() => {
+    if (isAdmin) {
+      const gruposDelAdmin = grupos.filter(grupo => 
+        String(grupo['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
+      );
+      if (gruposDelAdmin.length > 0) {
+        const idsGrupos = gruposDelAdmin.map(grupo => String(grupo.IdGrupo));
+        return gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
       }
-      
-      setGimnastas(gFiltrados);
-      setCategorias(c.sort((a, b) => a.Idcategoria - b.Idcategoria));
-      setGrupos(gr);
-    }).finally(() => setLoading(false));
-  }, [user, isAdmin]);
-
-  const filtrados = gimnastas.filter(g => {
-    const matchNombre = g['Nombre y Apellido']?.toLowerCase().includes(busqueda.toLowerCase());
-    const matchCategoria = !filtroCategoria || g.Categoria === filtroCategoria;
-    const matchStatus = !filtroStatus || g.Status === filtroStatus;
-    return matchNombre && matchCategoria && matchStatus;
-  });
-
-  const porCategoria = {};
-  filtrados.forEach(g => {
-    const cat = g.Categoria || 'Sin categoría';
-    if (!porCategoria[cat]) porCategoria[cat] = [];
-    porCategoria[cat].push(g);
-  });
-
-  // Ordenar categorías según el orden de la tabla Categorias
-  const categoriasOrdenadas = Object.keys(porCategoria).sort((a, b) => {
-    const catA = categorias.find(c => c.categoria === a);
-    const catB = categorias.find(c => c.categoria === b);
-    return (catA?.Idcategoria || 999) - (catB?.Idcategoria || 999);
-  });
-
-  const abrirModal = (gimnasta = null) => {
-    if (gimnasta) {
-      setEditandoId(gimnasta['Submission ID']);
-      setFormData({
-        'Nombre y Apellido': gimnasta['Nombre y Apellido'] || '',
-        Categoria: gimnasta.Categoria || '',
-        Nivel: gimnasta.Nivel || '',
-        Grupo: String(gimnasta.Grupo) || '',
-        Status: gimnasta.Status || 'Activo'
-      });
+      return gimnastas;
     } else {
-      setEditandoId(null);
-      setFormData({
-        'Nombre y Apellido': '',
-        Categoria: '',
-        Nivel: '',
-        Grupo: '',
-        Status: 'Activo'
-      });
+      const gruposDelProfe = grupos.filter(grupo => 
+        String(grupo['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
+      );
+      const idsGrupos = gruposDelProfe.map(grupo => String(grupo.IdGrupo));
+      return gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
     }
-    setModalAbierto(true);
+  }, [gimnastas, grupos, user, isAdmin]);
+
+  const getNombreGrupo = (id) => {
+    const g = grupos.find(gr => String(gr.IdGrupo) === String(id));
+    return g ? g['Nombre Grupo'] : 'Sin grupo';
   };
 
-  const guardar = async () => {
-    if (!formData['Nombre y Apellido'] || !formData.Categoria) {
-      alert('Completa al menos el nombre y la categoría');
-      return;
-    }
-    try {
-      if (editandoId) {
-        await gimnastasAPI.actualizar(user.IdUsuarios, editandoId, formData);
-      } else {
-        await gimnastasAPI.crear(user.IdUsuarios, formData);
-      }
-      setModalAbierto(false);
-      window.location.reload();
-    } catch (err) {
-      alert('Error al guardar: ' + err.message);
-    }
+  const getProfesores = (id) => {
+    const g = grupos.find(gr => String(gr.IdGrupo) === String(id));
+    return g ? g['Profesor(es)'] : '';
   };
 
-  const eliminar = async (id, nombre) => {
-    if (!window.confirm(`¿Eliminar a "${nombre}"? Esta acción no se puede deshacer.`)) return;
-    try {
-      await gimnastasAPI.eliminar(user.IdUsuarios, id);
-      window.location.reload();
-    } catch (err) {
-      alert('Error al eliminar: ' + err.message);
-    }
-  };
+  // Aplicar todos los filtros
+  const filtrados = useMemo(() => {
+    return gimnastasFiltradosPorRol.filter(g => {
+      const matchNombre = g['Nombre y Apellido']?.toLowerCase().includes(busqueda.toLowerCase());
+      const matchCategoria = !filtroCategoria || g.Categoria === filtroCategoria;
+      const matchNivel = !filtroNivel || g.Nivel === filtroNivel;
+      const matchStatus = !filtroStatus || g.Status === filtroStatus;
+      return matchNombre && matchCategoria && matchNivel && matchStatus;
+    });
+  }, [gimnastasFiltradosPorRol, busqueda, filtroCategoria, filtroNivel, filtroStatus]);
 
-  // Helper para verificar si tiene alerta médica
-  const tieneAlerta = (g) => 
-    g['¿Presenta Alguna Condición Médica, Aspecto de Salud ó Cuidado Especial?'] === 'Si' || 
-    g['¿Es Alérgico?'] === 'Si';
+  const porCategoria = useMemo(() => {
+    const obj = {};
+    filtrados.forEach(g => {
+      const cat = g.Categoria || 'Sin categoría';
+      if (!obj[cat]) obj[cat] = [];
+      obj[cat].push(g);
+    });
+    return obj;
+  }, [filtrados]);
+
+  const categoriasOrdenadas = useMemo(() => {
+    return Object.keys(porCategoria).sort((a, b) => {
+      const catA = categorias.find(c => c.categoria === a);
+      const catB = categorias.find(c => c.categoria === b);
+      return (catA?.Idcategoria || 999) - (catB?.Idcategoria || 999);
+    });
+  }, [porCategoria, categorias]);
 
   if (loading) {
     return (
@@ -143,23 +113,15 @@ export default function Gimnastas() {
 
   return (
     <div className="space-y-4 pb-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gold">Gimnastas</h2>
-          <p className="text-xs text-gray-500">
-            {filtrados.length} gimnasta{filtrados.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-        {isAdmin && (
-          <button
-            onClick={() => abrirModal()}
-            className="bg-gold text-darkBg p-2.5 rounded-xl hover:bg-goldDark transition shadow-lg shadow-gold/20"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-        )}
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold text-gold">Gimnastas</h2>
+        <p className="text-xs text-gray-500">
+          {filtrados.length} gimnasta{filtrados.length !== 1 ? 's' : ''}
+        </p>
       </div>
 
+      {/* Búsqueda */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
         <input
@@ -171,6 +133,7 @@ export default function Gimnastas() {
         />
       </div>
 
+      {/* Filtros */}
       <div className="grid grid-cols-2 gap-2">
         <select
           value={filtroCategoria}
@@ -182,6 +145,19 @@ export default function Gimnastas() {
             <option key={c.Idcategoria} value={c.categoria}>{c.categoria}</option>
           ))}
         </select>
+        <select
+          value={filtroNivel}
+          onChange={e => setFiltroNivel(e.target.value)}
+          className="bg-darkCard border border-gray-800 rounded-xl p-2.5 text-xs focus:border-gold focus:outline-none"
+        >
+          <option value="">Todos los niveles</option>
+          {nivelesUnicos.map(nivel => (
+            <option key={nivel} value={nivel}>{nivel}</option>
+          ))}
+        </select>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-2">
         <select
           value={filtroStatus}
           onChange={e => setFiltroStatus(e.target.value)}
@@ -202,7 +178,7 @@ export default function Gimnastas() {
           return (
             <div key={categoria}>
               {/* Separador de categoría */}
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <div className="h-px flex-1 bg-gold/30" />
                 <h3 className="text-gold font-bold text-xs uppercase px-2 flex items-center gap-1.5">
                   {categoria}
@@ -215,76 +191,88 @@ export default function Gimnastas() {
               </div>
 
               {/* Cards de gimnastas */}
-              <div className="space-y-2">
-                {lista.map(g => (
-                  <div 
-                    key={g['Submission ID']} 
-                    className={`bg-darkCard border rounded-xl p-3 transition ${
-                      tieneAlerta(g) 
-                        ? 'border-gymRed/40 bg-gymRed/5' 
-                        : 'border-gray-800 hover:border-gold/30'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <div className="font-semibold text-sm truncate">
+              <div className="space-y-3">
+                {lista.map(g => {
+                  const nombreGrupo = getNombreGrupo(g.Grupo);
+                  const profesores = getProfesores(g.Grupo);
+                  const esFederado = g.Federados === 'TRUE' || g.Federados === true;
+                  
+                  return (
+                    <div 
+                      key={g['Submission ID']} 
+                      className="bg-darkCard border border-gray-800 rounded-xl p-4 hover:border-gold/30 transition"
+                    >
+                      {/* Nombre y badges principales */}
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-base truncate text-white">
                             {g['Nombre y Apellido']}
-                          </div>
-                          {tieneAlerta(g) && (
-                            <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gymRed/20 text-gymRed text-[9px] font-bold flex-shrink-0">
-                              <AlertTriangle className="w-2.5 h-2.5" />
-                              ALERTA
-                            </div>
-                          )}
+                          </h3>
                         </div>
-                        <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                          <span>{g.Nivel}</span>
-                          <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
-                            g.Status === 'Activo' 
-                              ? 'bg-checkGreen/20 text-checkGreen' 
-                              : 'bg-gymRed/20 text-gymRed'
-                          }`}>
-                            {g.Status}
-                          </span>
-                          {g.Federados === 'TRUE' || g.Federados === true ? (
-                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-gold/20 text-gold">
-                              FEDERADO
-                            </span>
-                          ) : null}
+                        <div className={`px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0 ${
+                          g.Status === 'Activo' 
+                            ? 'bg-checkGreen/20 text-checkGreen' 
+                            : 'bg-gymRed/20 text-gymRed'
+                        }`}>
+                          {g.Status}
                         </div>
-                        {tieneAlerta(g) && (
-                          <div className="text-[10px] text-gymRed mt-1 font-medium">
-                            {g['¿Presenta Alguna Condición Médica, Aspecto de Salud ó Cuidado Especial?'] === 'Si' && 
-                              `⚕️ ${g.Especificar || 'Condición médica'}`}
-                            {g['¿Es Alérgico?'] === 'Si' && 
-                              ` · 🤧 Alergia: ${g['¿A qué es Alérgico?'] || 'Sí'}`}
-                          </div>
-                        )}
                       </div>
 
-                      {/* Botones de acción (solo Admin) */}
-                      {isAdmin && (
-                        <div className="flex gap-1 flex-shrink-0">
-                          <button
-                            onClick={() => abrirModal(g)}
-                            className="p-2 text-gold hover:bg-gold/10 rounded-lg transition"
-                            title="Editar"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => eliminar(g['Submission ID'], g['Nombre y Apellido'])}
-                            className="p-2 text-gymRed hover:bg-gymRed/10 rounded-lg transition"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                      {/* Información detallada */}
+                      <div className="space-y-2.5">
+                        {/* Fecha de nacimiento y edad */}
+                        <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <Calendar className="w-4 h-4 text-gold flex-shrink-0" />
+                          <span className="font-medium">
+                            {formatearFecha(g['Fecha de Nacimiento'])}
+                          </span>
+                          {g['Edad que cumple este año'] && (
+                            <span className="text-gold font-semibold">
+                              ({g['Edad que cumple este año']} años)
+                            </span>
+                          )}
                         </div>
-                      )}
+
+                        {/* Documento */}
+                        <div className="flex items-center gap-2 text-sm text-gray-300">
+                          <Shield className="w-4 h-4 text-gold flex-shrink-0" />
+                          <span className="font-mono">{g.Documento || '—'}</span>
+                        </div>
+
+                        {/* Grupo y Profesores */}
+                        <div className="flex items-start gap-2 text-sm text-gray-300">
+                          <MapPin className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <div className="font-medium text-white">{nombreGrupo}</div>
+                            {profesores && (
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                👨‍ {profesores}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Nivel y Federado */}
+                        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-gray-800">
+                          <div className="flex items-center gap-1.5">
+                            <Award className="w-4 h-4 text-gold" />
+                            <span className="text-sm font-semibold text-gold">{g.Nivel}</span>
+                          </div>
+                          
+                          {esFederado && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-gold/20 text-gold">
+                              FEDERADO
+                            </span>
+                          )}
+                          
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-darkBg text-gray-300">
+                            {g.Categoria}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
@@ -296,114 +284,6 @@ export default function Gimnastas() {
           </div>
         )}
       </div>
-
-      {/* ============ MODAL CREAR/EDITAR ============ */}
-      {modalAbierto && (
-        <div 
-          className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center"
-          onClick={() => setModalAbierto(false)}
-        >
-          <div 
-            className="bg-darkCard w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-y-auto border border-gold/20"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-darkCard border-b border-gold/20 p-4 flex justify-between items-center z-10">
-              <h3 className="text-lg font-bold text-gold">
-                {editandoId ? 'Editar' : 'Nuevo'} Gimnasta
-              </h3>
-              <button 
-                onClick={() => setModalAbierto(false)}
-                className="p-1.5 rounded-lg hover:bg-darkBg text-gray-400"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">NOMBRE Y APELLIDO *</label>
-                <input
-                  value={formData['Nombre y Apellido']}
-                  onChange={e => setFormData({ ...formData, 'Nombre y Apellido': e.target.value })}
-                  placeholder="Ej: Juan Pérez"
-                  className="w-full bg-darkBg border border-gray-700 rounded-lg p-3 text-sm focus:border-gold focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">CATEGORÍA *</label>
-                <select
-                  value={formData.Categoria}
-                  onChange={e => setFormData({ ...formData, Categoria: e.target.value })}
-                  className="w-full bg-darkBg border border-gray-700 rounded-lg p-3 text-sm focus:border-gold focus:outline-none"
-                >
-                  <option value="">Seleccionar categoría</option>
-                  {categorias.map(c => (
-                    <option key={c.Idcategoria} value={c.categoria}>
-                      {c.categoria} ({c.edad} años)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">NIVEL</label>
-                <input
-                  value={formData.Nivel}
-                  onChange={e => setFormData({ ...formData, Nivel: e.target.value })}
-                  placeholder="Ej: E1, USAG 1B, USAG 2"
-                  className="w-full bg-darkBg border border-gray-700 rounded-lg p-3 text-sm focus:border-gold focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">GRUPO</label>
-                <select
-                  value={formData.Grupo}
-                  onChange={e => setFormData({ ...formData, Grupo: e.target.value })}
-                  className="w-full bg-darkBg border border-gray-700 rounded-lg p-3 text-sm focus:border-gold focus:outline-none"
-                >
-                  <option value="">Seleccionar grupo</option>
-                  {grupos.map(g => (
-                    <option key={g.IdGrupo} value={g.IdGrupo}>
-                      #{g.IdGrupo} - {g['Nombre Grupo']}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">STATUS</label>
-                <div className="flex gap-2">
-                  {['Activo', 'Inactivo'].map(opt => (
-                    <button
-                      key={opt}
-                      onClick={() => setFormData({ ...formData, Status: opt })}
-                      className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition ${
-                        formData.Status === opt
-                          ? opt === 'Activo' 
-                            ? 'bg-checkGreen text-white' 
-                            : 'bg-gymRed text-white'
-                          : 'bg-darkBg border border-gray-700 text-gray-400'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                onClick={guardar}
-                className="w-full bg-gradient-to-r from-gymRed to-gymRedDark text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 mt-4 shadow-lg shadow-gymRed/20"
-              >
-                <Save className="w-4 h-4" />
-                {editandoId ? 'Actualizar' : 'Crear'} Gimnasta
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
