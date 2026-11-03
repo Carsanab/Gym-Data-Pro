@@ -3,16 +3,15 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { Loader2, Users, ChevronDown, ChevronUp, Shield, Layers } from 'lucide-react';
 import { Avatar } from '../utils/imagenes.jsx';
+import ModalImagen from '../components/ModalImagen.jsx'; // ✅ NUEVO
 
 export default function Entrenadores() {
   const { user } = useAuth();
   const isAdmin = user?.Rol === 'Admin';
-  
-  // ✅ Usar datos del contexto (caché global, carga instantánea)
   const { usuarios, grupos, gimnastas, loading } = useData();
   const [expandido, setExpandido] = useState({});
+  const [imagenModal, setImagenModal] = useState(null); // ✅ NUEVO
 
-  // 🔒 SEGURIDAD: Solo los admins pueden ver esta vista
   if (!isAdmin) {
     return (
       <div className="text-center py-12">
@@ -23,9 +22,7 @@ export default function Entrenadores() {
     );
   }
 
-  // Calcular datos usando useMemo para evitar recálculos innecesarios
   const data = useMemo(() => {
-    // Filtrar usuarios que tengan grupos asignados (Admins o Profesores)
     const usuariosConGrupos = usuarios.filter(u => {
       const tieneGrupos = grupos.some(g => 
         String(g['Profesor(es)']).split(',').map(s => s.trim()).includes(u.Usuario)
@@ -48,7 +45,6 @@ export default function Entrenadores() {
       };
     });
     
-    // Ordenar: Admins primero, luego por nombre alfabéticamente
     result.sort((a, b) => {
       if (a.esAdmin && !b.esAdmin) return -1;
       if (!a.esAdmin && b.esAdmin) return 1;
@@ -89,8 +85,22 @@ export default function Entrenadores() {
                 onClick={() => toggleExpandido(profesor.IdUsuarios)}
                 className="w-full flex items-center gap-3 p-4 bg-gradient-to-r from-gold/10 to-transparent border-b border-gold/20 text-left hover:from-gold/15 transition"
               >
-                {/* ✅ Usar componente Avatar reutilizable */}
-                <Avatar nombreUsuario={profesor.Usuario} size="lg" />
+                {/* ✅ IMAGEN CLICKEABLE */}
+                <div 
+                  className="relative group flex-shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Evita expandir/colapsar
+                    setImagenModal(profesor.Usuario);
+                  }}
+                >
+                  <Avatar nombreUsuario={profesor.Usuario} size="lg" />
+                  {/* Overlay de zoom al hover */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                    </svg>
+                  </div>
+                </div>
                 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -166,6 +176,14 @@ export default function Entrenadores() {
           </div>
         )}
       </div>
+
+      {/* ✅ MODAL DE IMAGEN */}
+      {imagenModal && (
+        <ModalImagen 
+          nombreUsuario={imagenModal} 
+          onClose={() => setImagenModal(null)} 
+        />
+      )}
     </div>
   );
 }

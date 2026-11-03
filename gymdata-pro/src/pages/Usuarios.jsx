@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { usuariosAPI } from '../services/api';
@@ -7,6 +7,7 @@ import {
   Shield, Eye, EyeOff
 } from 'lucide-react';
 import { Avatar } from '../utils/imagenes.jsx';
+import ModalImagen from '../components/ModalImagen.jsx'; // ✅ NUEVO
 
 export default function Usuarios() {
   const { user } = useAuth();
@@ -16,6 +17,7 @@ export default function Usuarios() {
   const [busqueda, setBusqueda] = useState('');
   const [filtroRol, setFiltroRol] = useState('');
   const [mostrarPasswords, setMostrarPasswords] = useState({});
+  const [imagenModal, setImagenModal] = useState(null); // ✅ NUEVO
   
   const [modalAbierto, setModalAbierto] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
@@ -102,7 +104,6 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-4 pb-4">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gold">Usuarios</h2>
@@ -116,7 +117,6 @@ export default function Usuarios() {
         </button>
       </div>
 
-      {/* Filtros */}
       <div className="space-y-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -149,16 +149,25 @@ export default function Usuarios() {
         </div>
       </div>
 
-      {/* Lista de usuarios */}
       <div className="space-y-2">
         {filtrados.map(u => (
           <div key={u.IdUsuarios} className="bg-darkCard border border-gray-800 rounded-xl p-3 hover:border-gold/30 transition">
             <div className="flex items-start gap-3">
-              {/* ✅ IMAGEN DEL USUARIO */}
-              <Avatar nombreUsuario={u.Usuario} size="lg" />
+              {/* ✅ IMAGEN CLICKEABLE */}
+              <div 
+                className="relative group flex-shrink-0 cursor-pointer"
+                onClick={() => setImagenModal(u.Usuario)}
+              >
+                <Avatar nombreUsuario={u.Usuario} size="lg" />
+                {/* Overlay de zoom al hover */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                  </svg>
+                </div>
+              </div>
               
               <div className="flex-1 min-w-0">
-                {/* Nombre y Rol */}
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   <span className="font-bold text-sm">{u.Usuario}</span>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
@@ -167,11 +176,7 @@ export default function Usuarios() {
                     {u.Rol}
                   </span>
                 </div>
-                
-                {/* Correo */}
                 <div className="text-xs text-gray-500 truncate">{u.Correo}</div>
-                
-                {/* Contraseña con toggle */}
                 <div className="flex items-center gap-2 mt-1.5">
                   <div className="text-[10px] text-gray-500 uppercase font-semibold">Contraseña:</div>
                   <code className="text-xs bg-darkBg px-2 py-0.5 rounded font-mono text-gold">
@@ -191,7 +196,6 @@ export default function Usuarios() {
               </div>
             </div>
 
-            {/* Botones Editar/Eliminar */}
             <div className="flex gap-2 mt-3 pt-2 border-t border-gray-800">
               <button
                 onClick={() => abrirModal(u)}
@@ -217,7 +221,6 @@ export default function Usuarios() {
         )}
       </div>
 
-      {/* Modal CRUD */}
       {modalAbierto && (
         <div 
           className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center"
@@ -240,20 +243,28 @@ export default function Usuarios() {
             </div>
 
             <div className="p-4 space-y-3">
-              {/* ✅ Preview de la imagen */}
+              {/* ✅ Preview de imagen también clickeable */}
               {formData.Usuario && (
-                <div className="flex flex-col items-center py-3 bg-darkBg rounded-xl">
-                  <Avatar nombreUsuario={formData.Usuario} size="xl" />
-                  <p className="text-[10px] text-gray-500 mt-2">
-                    Vista previa de la imagen
+                <div 
+                  className="flex flex-col items-center py-3 bg-darkBg rounded-xl cursor-pointer group"
+                  onClick={() => setImagenModal(formData.Usuario)}
+                >
+                  <div className="relative">
+                    <Avatar nombreUsuario={formData.Usuario} size="xl" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-2 group-hover:text-gold transition">
+                    👆 Clic para ver en grande
                   </p>
                 </div>
               )}
 
               <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">
-                  NOMBRE DE USUARIO *
-                </label>
+                <label className="text-xs text-gold font-semibold mb-1 block">NOMBRE DE USUARIO *</label>
                 <input
                   value={formData.Usuario}
                   onChange={e => setFormData({ ...formData, Usuario: e.target.value })}
@@ -266,9 +277,7 @@ export default function Usuarios() {
               </div>
 
               <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">
-                  CORREO *
-                </label>
+                <label className="text-xs text-gold font-semibold mb-1 block">CORREO *</label>
                 <input
                   type="email"
                   value={formData.Correo}
@@ -279,9 +288,7 @@ export default function Usuarios() {
               </div>
 
               <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">
-                  CONTRASEÑA *
-                </label>
+                <label className="text-xs text-gold font-semibold mb-1 block">CONTRASEÑA *</label>
                 <input
                   type="text"
                   value={formData.Contrasena}
@@ -292,9 +299,7 @@ export default function Usuarios() {
               </div>
 
               <div>
-                <label className="text-xs text-gold font-semibold mb-1 block">
-                  ROL *
-                </label>
+                <label className="text-xs text-gold font-semibold mb-1 block">ROL *</label>
                 <div className="flex gap-2">
                   {['Admin', 'Profesor'].map(rol => (
                     <button
@@ -314,7 +319,7 @@ export default function Usuarios() {
 
               <button
                 onClick={guardar}
-                className="w-full bg-gradient-to-r from-gymRed to-gymRedDark text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 mt-4 shadow-lg shadow-gymRed/20"
+                className="w-full bg-gradient-to-r from-gymRed to-gymRedDark text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 mt-4"
               >
                 <Save className="w-4 h-4" />
                 {editandoId ? 'Actualizar' : 'Crear'} Usuario
@@ -322,6 +327,14 @@ export default function Usuarios() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ✅ MODAL DE IMAGEN */}
+      {imagenModal && (
+        <ModalImagen 
+          nombreUsuario={imagenModal} 
+          onClose={() => setImagenModal(null)} 
+        />
       )}
     </div>
   );
