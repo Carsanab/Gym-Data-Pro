@@ -1,73 +1,17 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useState, useEffect } from 'react';
+import { useData } from '../context/DataContext'; // ✅ Importar del contexto
 import { 
   Folder, Users, Dumbbell, Layers, ClipboardCheck, History,
-  UserCheck, Shield, Loader2
+  UserCheck, Shield
 } from 'lucide-react';
-import { gruposAPI, gimnastasAPI, asistenciaAPI } from '../services/api';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const isAdmin = user?.Rol === 'Admin';
-  const [stats, setStats] = useState({ grupos: 0, gimnastas: 0, presentesHoy: 0 });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const cargarStats = async () => {
-      try {
-        const [grupos, gimnastas] = await Promise.all([
-          gruposAPI.getAll(),
-          gimnastasAPI.getAll()
-        ]);
-
-        let gruposFiltrados, gimnastasFiltrados;
-        
-        if (isAdmin) {
-          const gruposDelAdmin = grupos.filter(g => 
-            String(g['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
-          );
-          
-          if (gruposDelAdmin.length > 0) {
-            gruposFiltrados = gruposDelAdmin;
-            const idsGrupos = gruposDelAdmin.map(gr => String(gr.IdGrupo));
-            gimnastasFiltrados = gimnastas.filter(g => idsGrupos.includes(String(g.Grupo)));
-          } else {
-            gruposFiltrados = grupos;
-            gimnastasFiltrados = gimnastas;
-          }
-        } else {
-          gruposFiltrados = grupos.filter(g => 
-            String(g['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
-          );
-          const idsGrupos = gruposFiltrados.map(gr => String(gr.IdGrupo));
-          gimnastasFiltrados = gimnastas.filter(g => idsGrupos.includes(String(g.Grupo)));
-        }
-
-        const hoy = new Date().toISOString().split('T')[0];
-        let presentesHoy = 0;
-        
-        if (gruposFiltrados.length > 0) {
-          const asistenciasHoy = await Promise.all(
-            gruposFiltrados.map(g => asistenciaAPI.get(g.IdGrupo, hoy).catch(() => []))
-          );
-          presentesHoy = asistenciasHoy.flat().filter(a => a.Estado === 'P').length;
-        }
-
-        setStats({
-          grupos: gruposFiltrados.length,
-          gimnastas: gimnastasFiltrados.length,
-          presentesHoy
-        });
-      } catch (err) {
-        console.error('Error cargando stats:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    cargarStats();
-  }, [user, isAdmin]);
+  
+  // ✅ Consumir stats del contexto (NO se recargan al cambiar de vista)
+  const { stats, statsLoading } = useData();
 
   const menuItems = [
     { 
@@ -126,17 +70,30 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-4">
-          <Loader2 className="w-5 h-5 text-gold animate-spin" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-2">
-          <StatCard icon={Layers} value={stats.grupos} label="Grupos" color="text-gold" bg="bg-gold/10" />
-          <StatCard icon={Users} value={stats.gimnastas} label="Gimnastas" color="text-gymRed" bg="bg-gymRed/10" />
-          <StatCard icon={UserCheck} value={stats.presentesHoy} label="Hoy" color="text-checkGreen" bg="bg-checkGreen/10" />
-        </div>
-      )}
+      {/* ✅ Stats fijos, sin loading repetido */}
+      <div className="grid grid-cols-3 gap-2">
+        <StatCard 
+          icon={Layers} 
+          value={statsLoading && stats.grupos === 0 ? '...' : stats.grupos} 
+          label="Grupos" 
+          color="text-gold" 
+          bg="bg-gold/10" 
+        />
+        <StatCard 
+          icon={Users} 
+          value={statsLoading && stats.gimnastas === 0 ? '...' : stats.gimnastas} 
+          label="Gimnastas" 
+          color="text-gymRed" 
+          bg="bg-gymRed/10" 
+        />
+        <StatCard 
+          icon={UserCheck} 
+          value={statsLoading && stats.presentesHoy === 0 ? '...' : stats.presentesHoy} 
+          label="Hoy" 
+          color="text-checkGreen" 
+          bg="bg-checkGreen/10" 
+        />
+      </div>
 
       <div>
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-1">

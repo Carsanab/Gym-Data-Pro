@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Fondo circular -->
+  <circle cx="50" cy="50" r="48" fill="#0a0a0a" stroke="#D4AF37" stroke-width="2"/>
+  
+  <!-- Gimnasta estilizada -->
+  <g fill="#D4AF37">
+    <!-- Cabeza -->
+    <circle cx="50" cy="25" r="6"/>
+    
+    <!-- Cuerpo en pose de equilibrio -->
+    <path d="M 50 31 L 50 55" stroke="#D4AF37" stroke-width="3" stroke-linecap="round" fill="none"/>
+    
+    <!-- Brazos extendidos -->
+    <path d="M 50 38 L 35 30" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    <path d="M 50 38 L 65 30" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    
+    <!-- Pierna izquierda extendida (pose de equilibrio) -->
+    <path d="M 50 55 L 35 75" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    
+    <!-- Pierna derecha doblada -->
+    <path d="M 50 55 L 60 65 L 65 60" stroke="#D4AF37" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    
+    <!-- Estrella decorativa -->
+    <path d="M 75 20 L 77 25 L 82 25 L 78 28 L 80 33 L 75 30 L 70 33 L 72 28 L 68 25 L 73 25 Z" fill="#DC2626"/>
+  </g>
+  
+  <!-- Texto "GP" en la parte inferior -->
+  <text x="50" y="90" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#D4AF37" text-anchor="middle">GP</text>
+</svg>
