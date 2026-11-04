@@ -33,7 +33,6 @@ const formatearFecha = (fecha) => {
   return fechaStr;
 };
 
-// Función para convertir dd/mm/yyyy a yyyy-mm-dd (para inputs)
 const fechaAInput = (fecha) => {
   if (!fecha) return '';
   const fechaStr = String(fecha).trim();
@@ -68,7 +67,6 @@ export default function Legajo() {
   const [formData, setFormData] = useState({});
   const [guardando, setGuardando] = useState(false);
 
-  // Automatización: Categoría por Edad
   useEffect(() => {
     if (!modalAbierto) return;
     const edad = formData['Edad que cumple este año'];
@@ -90,7 +88,6 @@ export default function Legajo() {
     }
   }, [formData['Edad que cumple este año'], categorias, modalAbierto]);
 
-  // Automatización: Profesores por Grupo
   useEffect(() => {
     if (!modalAbierto) return;
     const grupoId = formData.Grupo;
@@ -104,38 +101,32 @@ export default function Legajo() {
     }
   }, [formData.Grupo, grupos, modalAbierto]);
 
-  // ✅ FILTRO: Admin ve todo (según sus grupos o todos), Profesor solo ve sus grupos Y solo Activos
   const gimnastasFiltradosPorRol = useMemo(() => {
-    let filtrados;
     if (isAdmin) {
       const gruposDelAdmin = grupos.filter(grupo => 
         String(grupo['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
       );
       if (gruposDelAdmin.length > 0) {
         const idsGrupos = gruposDelAdmin.map(grupo => String(grupo.IdGrupo));
-        filtrados = gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
-      } else {
-        filtrados = gimnastas;
+        return gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
       }
+      return gimnastas;
     } else {
       const gruposDelProfe = grupos.filter(grupo => 
         String(grupo['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
       );
       const idsGrupos = gruposDelProfe.map(grupo => String(grupo.IdGrupo));
-      filtrados = gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
+      return gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
     }
-    
-    // Si es profesor, ocultar inactivos
-    if (!isAdmin) {
-      filtrados = filtrados.filter(g => g.Status === 'Activo');
-    }
-    
-    return filtrados;
   }, [gimnastas, grupos, user, isAdmin]);
 
-  const getNombreGrupo = (id) => {
+  // ✅ NUEVA FUNCIÓN: retorna objeto con nombre y flag sinGrupo
+  const getGrupoInfo = (id) => {
     const g = grupos.find(gr => String(gr.IdGrupo) === String(id));
-    return g ? g['Nombre Grupo'] : 'Sin grupo';
+    if (g) {
+      return { nombre: g['Nombre Grupo'], sinGrupo: false };
+    }
+    return { nombre: 'Sin grupo', sinGrupo: true };
   };
 
   const filtrados = useMemo(() => {
@@ -316,64 +307,75 @@ export default function Legajo() {
       </div>
 
       <div className="space-y-2">
-        {filtrados.map(g => (
-          <div
-            key={g['Submission ID']}
-            className={`bg-darkCard border rounded-xl p-3 transition ${
-              tieneAlerta(g) ? 'border-gymRed/40' : 'border-gray-800 hover:border-gold/50'
-            }`}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <button
-                onClick={() => setSeleccionado(g)}
-                className="flex-1 min-w-0 text-left"
-              >
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <div className="font-semibold text-sm truncate">{g['Nombre y Apellido']}</div>
-                  {tieneAlerta(g) && (
-                    <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gymRed/20 text-gymRed text-[9px] font-bold flex-shrink-0">
-                      <AlertTriangle className="w-2.5 h-2.5" />
-                      ALERTA
+        {filtrados.map(g => {
+          const grupoInfo = getGrupoInfo(g.Grupo); // ✅ Usar nueva función
+          return (
+            <div
+              key={g['Submission ID']}
+              className={`bg-darkCard border rounded-xl p-3 transition ${
+                tieneAlerta(g) ? 'border-gymRed/40' : 'border-gray-800 hover:border-gold/50'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <button
+                  onClick={() => setSeleccionado(g)}
+                  className="flex-1 min-w-0 text-left"
+                >
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="font-semibold text-sm truncate">{g['Nombre y Apellido']}</div>
+                    {tieneAlerta(g) && (
+                      <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-gymRed/20 text-gymRed text-[9px] font-bold flex-shrink-0">
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        ALERTA
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {g.Categoria} · {g.Nivel} · {g.Status}
+                  </div>
+                  {/* ✅ "Sin grupo" en amarillo y más grande */}
+                  {grupoInfo.sinGrupo ? (
+                    <div className="text-sm font-bold text-gold mt-1 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5" />
+                      {grupoInfo.nombre}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-gray-600 mt-1 truncate">
+                      {grupoInfo.nombre}
+                    </div>
+                  )}
+                </button>
+                <div className="flex flex-col items-end gap-1">
+                  <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    g.Status === 'Activo' 
+                      ? 'bg-checkGreen/20 text-checkGreen' 
+                      : 'bg-gymRed/20 text-gymRed'
+                  }`}>
+                    {g.Status}
+                  </div>
+                  {isAdmin && (
+                    <div className="flex gap-1 mt-1">
+                      <button
+                        onClick={() => abrirModalEditar(g)}
+                        className="p-1.5 text-gold hover:bg-gold/10 rounded-lg transition"
+                        title="Editar"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => eliminar(g['Submission ID'], g['Nombre y Apellido'])}
+                        className="p-1.5 text-gymRed hover:bg-gymRed/10 rounded-lg transition"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   )}
                 </div>
-                <div className="text-xs text-gray-500 mt-0.5">
-                  {g.Categoria} · {g.Nivel} · {g.Status}
-                </div>
-                <div className="text-[10px] text-gray-600 mt-1 truncate">
-                  {getNombreGrupo(g.Grupo)}
-                </div>
-              </button>
-              <div className="flex flex-col items-end gap-1">
-                <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  g.Status === 'Activo' 
-                    ? 'bg-checkGreen/20 text-checkGreen' 
-                    : 'bg-gymRed/20 text-gymRed'
-                }`}>
-                  {g.Status}
-                </div>
-                {isAdmin && (
-                  <div className="flex gap-1 mt-1">
-                    <button
-                      onClick={() => abrirModalEditar(g)}
-                      className="p-1.5 text-gold hover:bg-gold/10 rounded-lg transition"
-                      title="Editar"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => eliminar(g['Submission ID'], g['Nombre y Apellido'])}
-                      className="p-1.5 text-gymRed hover:bg-gymRed/10 rounded-lg transition"
-                      title="Eliminar"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {filtrados.length === 0 && (
           <div className="text-center text-gray-500 py-8 text-sm">
             No se encontraron gimnastas
@@ -384,7 +386,7 @@ export default function Legajo() {
       {seleccionado && (
         <DetalleLegajo 
           gimnasta={seleccionado} 
-          nombreGrupo={getNombreGrupo(seleccionado.Grupo)}
+          grupoInfo={getGrupoInfo(seleccionado.Grupo)} // ✅ Pasar objeto completo
           grupos={grupos} 
           onClose={() => setSeleccionado(null)} 
         />
@@ -406,9 +408,7 @@ export default function Legajo() {
   );
 }
 
-// ==========================================================
-// MODAL CRUD COMPLETO
-// ==========================================================
+// ModalCRUDLegajo (sin cambios)
 function ModalCRUDLegajo({ editandoId, formData, setFormData, categorias, grupos, onGuardar, onClose, guardando }) {
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -636,12 +636,9 @@ function ModalCRUDLegajo({ editandoId, formData, setFormData, categorias, grupos
   );
 }
 
-// ==========================================================
-// COMPONENTE: Campo de Teléfono con WhatsApp
-// ==========================================================
+// CampoTelefono (sin cambios)
 function CampoTelefono({ label, value }) {
   if (!value) return null;
-  
   const clean = String(value).replace(/\D/g, '');
   const telLink = clean ? `tel:+${clean}` : '#';
   const waNumber = clean.startsWith('54') ? clean : `54${clean}`;
@@ -676,9 +673,9 @@ function CampoTelefono({ label, value }) {
 }
 
 // ==========================================================
-// COMPONENTE DETALLE (Solo lectura)
+// ✅ COMPONENTE DETALLE ACTUALIZADO
 // ==========================================================
-function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
+function DetalleLegajo({ gimnasta, grupoInfo, grupos, onClose }) {
   const g = gimnasta;
 
   const profesoresCalculados = useMemo(() => {
@@ -708,6 +705,7 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
   const Field = ({ label, value, highlight, icon: Icon, mono, truncate = false }) => {
     if (value === undefined || value === null || value === '' || value === ' ') return null;
     const valorStr = String(value);
+    
     return (
       <div className="bg-darkBg/50 rounded-lg p-3">
         <div className="flex items-center gap-1.5 mb-1">
@@ -753,10 +751,18 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
               <span className="text-sm bg-darkBg text-gray-300 px-2.5 py-1 rounded-full">{g.Nivel}</span>
               <span className={`text-sm px-2.5 py-1 rounded-full font-bold ${g.Status === 'Activo' ? 'bg-checkGreen/20 text-checkGreen' : 'bg-gymRed/20 text-gymRed'}`}>{g.Status}</span>
             </div>
-            <div className="text-sm text-gold mt-2.5 flex items-center gap-1.5">
-              <MapPin className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate">{nombreGrupo}</span>
-            </div>
+            {/* ✅ "Sin grupo" en amarillo y más grande en el header */}
+            {grupoInfo.sinGrupo ? (
+              <div className="text-base font-bold text-gold mt-2.5 flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 flex-shrink-0" />
+                {grupoInfo.nombre}
+              </div>
+            ) : (
+              <div className="text-sm text-gold mt-2.5 flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">{grupoInfo.nombre}</span>
+              </div>
+            )}
           </div>
           <button onClick={onClose} className="p-2 rounded-full bg-darkBg/50 hover:bg-darkBg text-white flex-shrink-0">
             <X className="w-6 h-6" />
@@ -823,8 +829,14 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
                   <div className="text-[11px] text-gray-400 uppercase font-semibold tracking-wide">Forma de entrega</div>
                 </div>
                 {esURL(g['Indicar como lo entregará']) ? (
-                  <a href={g['Indicar como lo entregará']} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-gold text-sm font-semibold hover:underline break-all">
-                    <FileText className="w-4 h-4 flex-shrink-0" /> <span className="truncate max-w-full">Ver certificado adjunto</span>
+                  <a 
+                    href={g['Indicar como lo entregará']} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="inline-flex items-center gap-1.5 text-gold text-sm font-semibold hover:underline break-all"
+                  >
+                    <FileText className="w-4 h-4 flex-shrink-0" /> 
+                    <span className="truncate max-w-full">Ver certificado adjunto</span>
                   </a>
                 ) : (
                   <div className="font-medium text-[15px] leading-tight text-white break-words">
@@ -837,13 +849,22 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
             {g['Adjunto Certificado'] && esURL(g['Adjunto Certificado']) && (
               <div className="bg-darkBg/50 rounded-lg p-3">
                 <div className="text-xs text-gray-400 uppercase font-semibold mb-1.5">Certificado Adjunto</div>
-                <a href={g['Adjunto Certificado']} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-gold text-sm font-semibold hover:underline">
-                  <FileText className="w-4 h-4 flex-shrink-0" /> <span>Ver documento</span>
+                <a 
+                  href={g['Adjunto Certificado']} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="inline-flex items-center gap-1.5 text-gold text-sm font-semibold hover:underline"
+                >
+                  <FileText className="w-4 h-4 flex-shrink-0" /> 
+                  <span>Ver documento</span>
                 </a>
               </div>
             )}
 
-            <Field label="Aceptación del reglamento" value={formatearBooleano(g['Acepto el reglamento de gimnasia artística(compartido por Whatsapp) y estoy en conocimiento de todos los puntos citados. (Acepto)'])} />
+            <Field 
+              label="Aceptación del reglamento" 
+              value={formatearBooleano(g['Acepto el reglamento de gimnasia artística(compartido por Whatsapp) y estoy en conocimiento de todos los puntos citados. (Acepto)'])} 
+            />
           </Section>
 
           <Section icon={Award} title="Detalles Deportivos" subtitle="Categoría, nivel y grupo">
@@ -855,8 +876,24 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
               <Field label="Status" value={g.Status} />
               <Field label="Federado" value={g.Federados === 'TRUE' || g.Federados === true ? 'Sí' : 'No'} />
             </div>
-            <Field label="Grupo asignado" value={nombreGrupo} icon={MapPin} />
-            {profesoresCalculados && <Field label="Profesor(es)" value={profesoresCalculados} icon={Users} />}
+            {/* ✅ "Sin grupo" en amarillo y más grande en la sección deportiva */}
+            {grupoInfo.sinGrupo ? (
+              <div className="bg-gold/10 border border-gold/30 rounded-lg p-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <MapPin className="w-3.5 h-3.5 text-gold" />
+                  <div className="text-[11px] text-gold uppercase font-semibold tracking-wide">Grupo asignado</div>
+                </div>
+                <div className="font-bold text-base text-gold leading-tight">
+                  {grupoInfo.nombre}
+                </div>
+              </div>
+            ) : (
+              <Field label="Grupo asignado" value={grupoInfo.nombre} icon={MapPin} />
+            )}
+            
+            {profesoresCalculados && (
+              <Field label="Profesor(es)" value={profesoresCalculados} icon={Users} />
+            )}
           </Section>
 
           <div className="text-center pt-3 pb-5">
