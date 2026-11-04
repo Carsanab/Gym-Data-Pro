@@ -149,13 +149,16 @@ export default function Grupos() {
   };
 
   const toggleFederado = (profes) => {
-    const actual = formData['Profesor(es)'];
-    const lista = actual ? actual.split(',').map(s => s.trim()).filter(Boolean) : [];
-    const idx = lista.indexOf(profes);
-    if (idx >= 0) lista.splice(idx, 1);
-    else lista.push(proes);
-    setFormData({ ...formData, 'Profesor(es)': lista.join(', ') });
-  };
+  const actual = formData['Profesor(es)'];
+  const lista = actual ? actual.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const idx = lista.indexOf(profes);
+  if (idx >= 0) {
+    lista.splice(idx, 1);  // Remover si ya está seleccionado
+  } else {
+    lista.push(profes);  // 
+  }
+  setFormData({ ...formData, 'Profesor(es)': lista.join(', ') });
+};
 
   if (loading) {
     return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-gold animate-spin" /></div>;
