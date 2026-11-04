@@ -1,16 +1,15 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useData } from '../context/DataContext'; // ✅ Importar del contexto
+import { useData } from '../context/DataContext';
 import { 
   Folder, Users, Dumbbell, Layers, ClipboardCheck, History,
-  UserCheck, Shield
+  UserCheck, Shield, CheckCircle2, XCircle
 } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const isAdmin = user?.Rol === 'Admin';
   
-  // ✅ Consumir stats del contexto (NO se recargan al cambiar de vista)
   const { stats, statsLoading } = useData();
 
   const menuItems = [
@@ -47,6 +46,9 @@ export default function Dashboard() {
   const hora = new Date().getHours();
   const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
 
+  // Helper para mostrar valor o "..." mientras carga
+  const valor = (v) => statsLoading && v === 0 ? '...' : v;
+
   return (
     <div className="space-y-5 pb-4">
       <div className="bg-gradient-to-br from-gold/10 via-darkCard to-darkCard border border-gold/20 rounded-2xl p-4">
@@ -70,30 +72,50 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ✅ Stats fijos, sin loading repetido */}
+      {/* Stats principales */}
       <div className="grid grid-cols-3 gap-2">
         <StatCard 
           icon={Layers} 
-          value={statsLoading && stats.grupos === 0 ? '...' : stats.grupos} 
+          value={valor(stats.grupos)} 
           label="Grupos" 
           color="text-gold" 
           bg="bg-gold/10" 
         />
         <StatCard 
           icon={Users} 
-          value={statsLoading && stats.gimnastas === 0 ? '...' : stats.gimnastas} 
-          label="Gimnastas" 
+          value={valor(stats.gimnastas)} 
+          label="Total" 
           color="text-gymRed" 
           bg="bg-gymRed/10" 
         />
         <StatCard 
           icon={UserCheck} 
-          value={statsLoading && stats.presentesHoy === 0 ? '...' : stats.presentesHoy} 
+          value={valor(stats.presentesHoy)} 
           label="Hoy" 
           color="text-checkGreen" 
           bg="bg-checkGreen/10" 
         />
       </div>
+
+      {/* ✅ SOLO ADMIN: Activas e Inactivas */}
+      {isAdmin && (
+        <div className="grid grid-cols-2 gap-2">
+          <StatCard 
+            icon={CheckCircle2} 
+            value={valor(stats.gimnastasActivas)} 
+            label="Activas" 
+            color="text-checkGreen" 
+            bg="bg-checkGreen/10" 
+          />
+          <StatCard 
+            icon={XCircle} 
+            value={valor(stats.gimnastasInactivas)} 
+            label="Inactivas" 
+            color="text-gymRed" 
+            bg="bg-gymRed/10" 
+          />
+        </div>
+      )}
 
       <div>
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-1">

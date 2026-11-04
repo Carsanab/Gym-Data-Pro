@@ -5,7 +5,7 @@ import {
   categoriasAPI, 
   gruposAPI, 
   usuariosAPI,
-  asistenciaAPI  // ✅ Agregado para calcular presentesHoy
+  asistenciaAPI
 } from '../services/api';
 
 const DataContext = createContext();
@@ -21,8 +21,13 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // === NUEVO: Stats cacheados ===
-  const [stats, setStats] = useState({ grupos: 0, gimnastas: 0, presentesHoy: 0 });
+  const [stats, setStats] = useState({ 
+    grupos: 0, 
+    gimnastas: 0, 
+    gimnastasActivas: 0,    // ✅ NUEVO
+    gimnastasInactivas: 0,  // ✅ NUEVO
+    presentesHoy: 0 
+  });
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsLoaded, setStatsLoaded] = useState(false);
 
@@ -48,7 +53,7 @@ export const DataProvider = ({ children }) => {
     }
   }, [loading]);
 
-  // === NUEVO: Cargar stats (solo una vez por sesión) ===
+  // ✅ CALCULAR STATS CON ACTIVAS E INACTIVAS
   const cargarStats = useCallback(async () => {
     if (statsLoading || !user) return;
     setStatsLoading(true);
@@ -83,6 +88,10 @@ export const DataProvider = ({ children }) => {
         gimnastasFiltrados = gimnastasData.filter(g => idsGrupos.includes(String(g.Grupo)));
       }
 
+      // ✅ CALCULAR ACTIVAS E INACTIVAS
+      const gimnastasActivas = gimnastasFiltrados.filter(g => g.Status === 'Activo').length;
+      const gimnastasInactivas = gimnastasFiltrados.filter(g => g.Status === 'Inactivo').length;
+
       const hoy = new Date().toISOString().split('T')[0];
       let presentesHoy = 0;
 
@@ -96,6 +105,8 @@ export const DataProvider = ({ children }) => {
       setStats({
         grupos: gruposFiltrados.length,
         gimnastas: gimnastasFiltrados.length,
+        gimnastasActivas,      // ✅
+        gimnastasInactivas,    // ✅
         presentesHoy
       });
       setStatsLoaded(true);
@@ -112,7 +123,6 @@ export const DataProvider = ({ children }) => {
     }
   }, [user, loaded, cargarDatos]);
 
-  // ✅ Cargar stats UNA SOLA VEZ cuando el usuario esté disponible
   useEffect(() => {
     if (user && !statsLoaded) {
       cargarStats();
@@ -122,11 +132,14 @@ export const DataProvider = ({ children }) => {
   const refreshGimnastas = async () => {
     const g = await gimnastasAPI.getAll();
     setGimnastas(g);
+    // Recalcular stats después de refresh
+    setStatsLoaded(false);
   };
 
   const refreshGrupos = async () => {
     const gr = await gruposAPI.getAll();
     setGrupos(gr);
+    setStatsLoaded(false);
   };
 
   const refreshUsuarios = async () => {
@@ -136,11 +149,11 @@ export const DataProvider = ({ children }) => {
 
   const refreshAll = async () => {
     await cargarDatos();
+    setStatsLoaded(false);
   };
 
-  // === NUEVO: Refrescar stats (llamar cuando cambie algo relevante) ===
   const refreshStats = async () => {
-    setStatsLoaded(false); // Resetear flag para permitir recarga
+    setStatsLoaded(false);
     await cargarStats();
   };
 
@@ -150,7 +163,7 @@ export const DataProvider = ({ children }) => {
     setGrupos([]);
     setUsuarios([]);
     setLoaded(false);
-    setStats({ grupos: 0, gimnastas: 0, presentesHoy: 0 });
+    setStats({ grupos: 0, gimnastas: 0, gimnastasActivas: 0, gimnastasInactivas: 0, presentesHoy: 0 });
     setStatsLoaded(false);
   };
 
@@ -162,13 +175,13 @@ export const DataProvider = ({ children }) => {
       usuarios,
       loading,
       loaded,
-      stats,           // ✅ Nuevo
-      statsLoading,    // ✅ Nuevo
+      stats,
+      statsLoading,
       refreshGimnastas,
       refreshGrupos,
       refreshUsuarios,
       refreshAll,
-      refreshStats,    // ✅ Nuevo
+      refreshStats,
       clearData
     }}>
       {children}

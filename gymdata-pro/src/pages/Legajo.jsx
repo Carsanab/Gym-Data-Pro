@@ -33,6 +33,7 @@ const formatearFecha = (fecha) => {
   return fechaStr;
 };
 
+// Función para convertir dd/mm/yyyy a yyyy-mm-dd (para inputs)
 const fechaAInput = (fecha) => {
   if (!fecha) return '';
   const fechaStr = String(fecha).trim();
@@ -67,6 +68,7 @@ export default function Legajo() {
   const [formData, setFormData] = useState({});
   const [guardando, setGuardando] = useState(false);
 
+  // Automatización: Categoría por Edad
   useEffect(() => {
     if (!modalAbierto) return;
     const edad = formData['Edad que cumple este año'];
@@ -88,6 +90,7 @@ export default function Legajo() {
     }
   }, [formData['Edad que cumple este año'], categorias, modalAbierto]);
 
+  // Automatización: Profesores por Grupo
   useEffect(() => {
     if (!modalAbierto) return;
     const grupoId = formData.Grupo;
@@ -101,23 +104,33 @@ export default function Legajo() {
     }
   }, [formData.Grupo, grupos, modalAbierto]);
 
+  // ✅ FILTRO: Admin ve todo (según sus grupos o todos), Profesor solo ve sus grupos Y solo Activos
   const gimnastasFiltradosPorRol = useMemo(() => {
+    let filtrados;
     if (isAdmin) {
       const gruposDelAdmin = grupos.filter(grupo => 
         String(grupo['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
       );
       if (gruposDelAdmin.length > 0) {
         const idsGrupos = gruposDelAdmin.map(grupo => String(grupo.IdGrupo));
-        return gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
+        filtrados = gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
+      } else {
+        filtrados = gimnastas;
       }
-      return gimnastas;
     } else {
       const gruposDelProfe = grupos.filter(grupo => 
         String(grupo['Profesor(es)']).split(',').map(s => s.trim()).includes(user.Usuario)
       );
       const idsGrupos = gruposDelProfe.map(grupo => String(grupo.IdGrupo));
-      return gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
+      filtrados = gimnastas.filter(gim => idsGrupos.includes(String(gim.Grupo)));
     }
+    
+    // Si es profesor, ocultar inactivos
+    if (!isAdmin) {
+      filtrados = filtrados.filter(g => g.Status === 'Activo');
+    }
+    
+    return filtrados;
   }, [gimnastas, grupos, user, isAdmin]);
 
   const getNombreGrupo = (id) => {
@@ -393,7 +406,9 @@ export default function Legajo() {
   );
 }
 
-// ... (ModalCRUDLegajo se mantiene exactamente igual que en tu código anterior) ...
+// ==========================================================
+// MODAL CRUD COMPLETO
+// ==========================================================
 function ModalCRUDLegajo({ editandoId, formData, setFormData, categorias, grupos, onGuardar, onClose, guardando }) {
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -622,19 +637,13 @@ function ModalCRUDLegajo({ editandoId, formData, setFormData, categorias, grupos
 }
 
 // ==========================================================
-// ✅ NUEVO COMPONENTE: Campo de Teléfono con WhatsApp
+// COMPONENTE: Campo de Teléfono con WhatsApp
 // ==========================================================
 function CampoTelefono({ label, value }) {
   if (!value) return null;
   
-  // 1. Limpiar el número (dejar solo dígitos)
   const clean = String(value).replace(/\D/g, '');
-  
-  // 2. Crear enlace para llamar (tel:)
   const telLink = clean ? `tel:+${clean}` : '#';
-  
-  // 3. Crear enlace para WhatsApp (wa.me)
-  // Si el número no empieza con '54' (Argentina), se lo agregamos automáticamente
   const waNumber = clean.startsWith('54') ? clean : `54${clean}`;
   const waLink = clean ? `https://wa.me/${waNumber}` : '#';
 
@@ -645,7 +654,6 @@ function CampoTelefono({ label, value }) {
         <div className="text-[11px] text-gray-400 uppercase font-semibold tracking-wide">{label}</div>
       </div>
       <div className="flex items-center gap-3">
-        {/* Número clickeable para llamar */}
         <a 
           href={telLink} 
           className="font-medium text-[15px] leading-tight text-white hover:text-gold transition font-mono flex-1 truncate"
@@ -653,8 +661,6 @@ function CampoTelefono({ label, value }) {
         >
           {String(value)}
         </a>
-        
-        {/* Botón de WhatsApp */}
         <a 
           href={waLink} 
           target="_blank" 
@@ -670,7 +676,7 @@ function CampoTelefono({ label, value }) {
 }
 
 // ==========================================================
-// ✅ COMPONENTE DETALLE (Actualizado con CampoTelefono)
+// COMPONENTE DETALLE (Solo lectura)
 // ==========================================================
 function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
   const g = gimnasta;
@@ -702,7 +708,6 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
   const Field = ({ label, value, highlight, icon: Icon, mono, truncate = false }) => {
     if (value === undefined || value === null || value === '' || value === ' ') return null;
     const valorStr = String(value);
-    
     return (
       <div className="bg-darkBg/50 rounded-lg p-3">
         <div className="flex items-center gap-1.5 mb-1">
@@ -772,7 +777,6 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
             <Field label="Profesión" value={g['Profesión']} icon={Briefcase} />
             <Field label="Domicilio" value={g.Domicilio} icon={MapPin} />
             <div className="grid grid-cols-2 gap-2.5">
-              {/* ✅ TELÉFONO CON WHATSAPP */}
               <CampoTelefono label="Teléfono" value={g.Teléfono} />
               <Field label="Días disponibles" value={g['Días disponibles para asistir a la actividad']} icon={Calendar} />
             </div>
@@ -799,7 +803,6 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
 
           <Section icon={Phone} title="Autorizados para Retirar" subtitle="Contacto de emergencia" color="text-checkGreen" bgColor="bg-checkGreen/5" borderColor="border-checkGreen/20">
             <div className="grid grid-cols-2 gap-2.5">
-              {/* ✅ TELÉFONOS CON WHATSAPP */}
               <CampoTelefono label="Teléfono 1" value={g['Teléfono 1']} />
               <CampoTelefono label="Teléfono 2" value={g['Teléfono 2']} />
             </div>
@@ -820,14 +823,8 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
                   <div className="text-[11px] text-gray-400 uppercase font-semibold tracking-wide">Forma de entrega</div>
                 </div>
                 {esURL(g['Indicar como lo entregará']) ? (
-                  <a 
-                    href={g['Indicar como lo entregará']} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="inline-flex items-center gap-1.5 text-gold text-sm font-semibold hover:underline break-all"
-                  >
-                    <FileText className="w-4 h-4 flex-shrink-0" /> 
-                    <span className="truncate max-w-full">Ver certificado adjunto</span>
+                  <a href={g['Indicar como lo entregará']} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-gold text-sm font-semibold hover:underline break-all">
+                    <FileText className="w-4 h-4 flex-shrink-0" /> <span className="truncate max-w-full">Ver certificado adjunto</span>
                   </a>
                 ) : (
                   <div className="font-medium text-[15px] leading-tight text-white break-words">
@@ -840,22 +837,13 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
             {g['Adjunto Certificado'] && esURL(g['Adjunto Certificado']) && (
               <div className="bg-darkBg/50 rounded-lg p-3">
                 <div className="text-xs text-gray-400 uppercase font-semibold mb-1.5">Certificado Adjunto</div>
-                <a 
-                  href={g['Adjunto Certificado']} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="inline-flex items-center gap-1.5 text-gold text-sm font-semibold hover:underline"
-                >
-                  <FileText className="w-4 h-4 flex-shrink-0" /> 
-                  <span>Ver documento</span>
+                <a href={g['Adjunto Certificado']} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-gold text-sm font-semibold hover:underline">
+                  <FileText className="w-4 h-4 flex-shrink-0" /> <span>Ver documento</span>
                 </a>
               </div>
             )}
 
-            <Field 
-              label="Aceptación del reglamento" 
-              value={formatearBooleano(g['Acepto el reglamento de gimnasia artística(compartido por Whatsapp) y estoy en conocimiento de todos los puntos citados. (Acepto)'])} 
-            />
+            <Field label="Aceptación del reglamento" value={formatearBooleano(g['Acepto el reglamento de gimnasia artística(compartido por Whatsapp) y estoy en conocimiento de todos los puntos citados. (Acepto)'])} />
           </Section>
 
           <Section icon={Award} title="Detalles Deportivos" subtitle="Categoría, nivel y grupo">
@@ -868,10 +856,7 @@ function DetalleLegajo({ gimnasta, nombreGrupo, grupos, onClose }) {
               <Field label="Federado" value={g.Federados === 'TRUE' || g.Federados === true ? 'Sí' : 'No'} />
             </div>
             <Field label="Grupo asignado" value={nombreGrupo} icon={MapPin} />
-            
-            {profesoresCalculados && (
-              <Field label="Profesor(es)" value={profesoresCalculados} icon={Users} />
-            )}
+            {profesoresCalculados && <Field label="Profesor(es)" value={profesoresCalculados} icon={Users} />}
           </Section>
 
           <div className="text-center pt-3 pb-5">
