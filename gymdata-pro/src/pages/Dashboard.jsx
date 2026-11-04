@@ -51,6 +51,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5 pb-4">
+      {/* Header de bienvenida */}
       <div className="bg-gradient-to-br from-gold/10 via-darkCard to-darkCard border border-gold/20 rounded-2xl p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -72,7 +73,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats principales */}
+      {/* Stats principales (visibles para todos) */}
       <div className="grid grid-cols-3 gap-2">
         <StatCard 
           icon={Layers} 
@@ -84,7 +85,7 @@ export default function Dashboard() {
         <StatCard 
           icon={Users} 
           value={valor(stats.gimnastas)} 
-          label="Total" 
+          label="Gimnastas" 
           color="text-gymRed" 
           bg="bg-gymRed/10" 
         />
@@ -97,7 +98,7 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* ✅ SOLO ADMIN: Activas e Inactivas */}
+      {/* ✅ SOLO ADMIN: Etiquetas de Activas e Inactivas */}
       {isAdmin && (
         <div className="grid grid-cols-2 gap-2">
           <StatCard 
@@ -117,6 +118,7 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Accesos rápidos */}
       <div>
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-1">
           Accesos rápidos
@@ -140,6 +142,7 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Mensaje según rol */}
       <div className="text-center py-3">
         <p className="text-[10px] text-gray-600">
           {isAdmin 
