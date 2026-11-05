@@ -38,17 +38,22 @@ export default function Asistencia() {
       const inicial = {};
       gimnastasDelGrupo.forEach(g => {
         const id = String(g['Submission ID']);
-        inicial[id] = map[id]?.estado || 'P'; // ✅ Por defecto Presente
+        // ✅ Por defecto null (sin marcar) a menos que ya exista un registro
+        inicial[id] = map[id]?.estado || null; 
       });
       setAsistencias(inicial);
     }).finally(() => setCargando(false));
   }, [grupoSel, fecha, gimnastas]);
 
-  const toggleEstado = (idGimnasta) => {
+  // ✅ Nueva función para marcar/desmarcar explícitamente
+  const marcarEstado = (idGimnasta, nuevoEstado) => {
     setAsistencias(prev => {
-      const actual = prev[idGimnasta];
-      const nuevo = actual === 'P' ? 'A' : 'P';
-      return { ...prev, [idGimnasta]: nuevo };
+      if (prev[idGimnasta] === nuevoEstado) {
+        const nuevo = { ...prev };
+        delete nuevo[idGimnasta]; // Desmarcar si ya tenía ese estado
+        return nuevo;
+      }
+      return { ...prev, [idGimnasta]: nuevoEstado };
     });
   };
 
@@ -56,26 +61,65 @@ export default function Asistencia() {
     if (!grupoSel) return;
     setGuardando(true);
     try {
+      // 1. Registros a crear o actualizar
       const registros = Object.entries(asistencias).filter(([idGimnasta, estado]) => {
+        if (!estado) return false;
         const existente = asistenciasExistentes[idGimnasta];
         return !existente || existente.estado !== estado;
-      }).map(([idGimnasta, estado]) => ({ idGimnasta, estado, idGrupo: grupoSel.IdGrupo, fecha, idProfesor: user.IdUsuarios }));
+      }).map(([idGimnasta, estado]) => ({ 
+        idGimnasta, 
+        estado, 
+        idGrupo: grupoSel.IdGrupo, 
+        fecha, 
+        idProfesor: user.IdUsuarios 
+      }));
       
-      if (registros.length === 0) { mostrarMsg('No hay cambios para guardar', false); setGuardando(false); return; }
+      // 2. Registros a eliminar (los que estaban marcados y ahora se desmarcaron)
+      const aEliminar = Object.entries(asistenciasExistentes).filter(([idGimnasta, existente]) => {
+        return !asistencias[idGimnasta]; 
+      }).map(([idGimnasta, existente]) => existente.id);
+
+      // Ejecutar eliminaciones si hay
+      if (aEliminar.length > 0) {
+        await Promise.all(aEliminar.map(id => asistenciaAPI.eliminar(id)));
+      }
       
-      await asistenciaAPI.registrar(registros);
-      mostrarMsg(`✓ ${registros.length} asistencias guardadas`, true);
+      if (registros.length === 0 && aEliminar.length === 0) { 
+        mostrarMsg('No hay cambios para guardar', false); 
+        setGuardando(false); 
+        return; 
+      }
+      
+      if (registros.length > 0) {
+        await asistenciaAPI.registrar(registros);
+      }
+      
+      mostrarMsg(`✓ Asistencia actualizada`, true);
+      
+      // Recargar estado real desde la BD
       const asistActualizada = await asistenciaAPI.get(grupoSel.IdGrupo, fecha);
       const map = {};
       asistActualizada.forEach(a => { map[String(a.IdGimnasta)] = { estado: a.Estado, id: a.ID }; });
       setAsistenciasExistentes(map);
-    } catch (err) { mostrarMsg('Error al guardar', false); } finally { setGuardando(false); }
+      
+      const gimnastasDelGrupo = gimnastas.filter(g => String(g.Grupo) === String(grupoSel.IdGrupo));
+      const inicial = {};
+      gimnastasDelGrupo.forEach(g => {
+        const id = String(g['Submission ID']);
+        inicial[id] = map[id]?.estado || null;
+      });
+      setAsistencias(inicial);
+
+    } catch (err) { 
+      mostrarMsg('Error al guardar', false); 
+    } finally { 
+      setGuardando(false); 
+    }
   };
 
   const mostrarMsg = (texto, ok) => { setMsg(texto); setTimeout(() => setMsg(''), 3000); };
   const contarEstado = (estado) => Object.values(asistencias).filter(v => v === estado).length;
 
-  // ✅ FILTRO: Admin ve todos, Profesor solo ve Activos
   const gimnastasDelGrupo = useMemo(() => {
     if (!grupoSel) return [];
     let filtrados = gimnastas.filter(g => String(g.Grupo) === String(grupoSel.IdGrupo));
@@ -150,17 +194,38 @@ export default function Asistencia() {
         <div className="space-y-2">
           {gimnastasDelGrupo.map(g => {
             const id = String(g['Submission ID']);
-            const estado = asistencias[id] || 'P';
+            const estado = asistencias[id] || null;
+            // ✅ Borde dinámico según el estado (gris si está sin marcar)
+            const bordeClase = estado === 'P' ? 'border-checkGreen/40' : estado === 'A' ? 'border-gymRed/40' : 'border-gray-800';
+            
             return (
-              <div key={id} className={`bg-darkCard border rounded-xl p-3 transition ${estado === 'P' ? 'border-checkGreen/40' : 'border-gymRed/40'}`}>
+              <div key={id} className={`bg-darkCard border rounded-xl p-3 transition ${bordeClase}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm truncate text-white">{g['Nombre y Apellido']}</div>
                     <div className="text-xs text-gray-500 mt-0.5">{g.Categoria} · {g.Nivel}</div>
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
-                    <button onClick={() => toggleEstado(id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition ${estado === 'P' ? 'bg-checkGreen text-white shadow-lg shadow-checkGreen/20' : 'bg-darkBg border border-gray-700 text-gray-400 hover:border-checkGreen/50'}`}><Check className="w-4 h-4" /><span>Presente</span></button>
-                    <button onClick={() => toggleEstado(id)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition ${estado === 'A' ? 'bg-gymRed text-white shadow-lg shadow-gymRed/20' : 'bg-darkBg border border-gray-700 text-gray-400 hover:border-gymRed/50'}`}><X className="w-4 h-4" /><span>Ausente</span></button>
+                    <button 
+                      onClick={() => marcarEstado(id, 'P')} 
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition ${
+                        estado === 'P' 
+                          ? 'bg-checkGreen text-white shadow-lg shadow-checkGreen/20' 
+                          : 'bg-darkBg border border-gray-700 text-gray-400 hover:border-checkGreen/50'
+                      }`}
+                    >
+                      <Check className="w-4 h-4" /><span>Presente</span>
+                    </button>
+                    <button 
+                      onClick={() => marcarEstado(id, 'A')} 
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition ${
+                        estado === 'A' 
+                          ? 'bg-gymRed text-white shadow-lg shadow-gymRed/20' 
+                          : 'bg-darkBg border border-gray-700 text-gray-400 hover:border-gymRed/50'
+                      }`}
+                    >
+                      <X className="w-4 h-4" /><span>Ausente</span>
+                    </button>
                   </div>
                 </div>
               </div>
